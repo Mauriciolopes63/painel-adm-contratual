@@ -265,17 +265,31 @@ if uploaded_file and "avaliacoes" in st.session_state:
 st.subheader("Relatórios")
 
 if st.button("📄 Gerar PDF Executivo"):
-    pdf_exec = gerar_pdf_executivo(
-    resultados_canvas,
-    st.session_state.avaliacoes,
-    meta
-)
+    if not resultados_canvas:
+        st.warning("Nenhuma avaliação foi salva ainda.")
+    else:
+        pdf_exec = gerar_pdf_executivo(
+            resultados_canvas,
+            st.session_state.avaliacoes,
+            meta
+        )
+        st.download_button(
+            "Download PDF Executivo",
+            data=pdf_exec,
+            file_name="relatorio_executivo_adm_contratual.pdf",
+            mime="application/pdf",
+            key="download_pdf_exec"
+        )
+
 
     st.download_button(
-        "Download PDF Executivo",
-        data=pdf_exec,
-        file_name="relatorio_executivo_adm_contratual.pdf",
-        mime="application/pdf"
+    "Download PDF Completo",
+    data=pdf_comp,
+    file_name="relatorio_completo_adm_contratual.pdf",
+    mime="application/pdf",
+    key="download_pdf_completo"
+)
+"application/pdf"
     )
 
 if st.button("📄 Gerar PDF Completo"):
