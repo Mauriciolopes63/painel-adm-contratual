@@ -1,5 +1,11 @@
 import streamlit as st
 import pandas as pd
+# ============================
+# SESSION STATE INICIAL
+# ============================
+if "avaliacoes" not in st.session_state:
+    st.session_state.avaliacoes = {}
+
 from io import BytesIO
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
