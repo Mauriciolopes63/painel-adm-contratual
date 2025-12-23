@@ -128,7 +128,7 @@ if uploaded_file:
 # ============================
 resultados_canvas = {}
 
-for aba in xls.sheet_names:
+    for aba in xls.sheet_names:
     df = xls.parse(aba)
 
     if aba in st.session_state.avaliacoes:
