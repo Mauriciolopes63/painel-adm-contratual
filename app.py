@@ -69,6 +69,9 @@ if uploaded_file:
 
     st.subheader("Canvas do Projeto")
 
+    # ============================
+    # AVALIAÇÃO POR ABA
+    # ============================
     for aba in xls.sheet_names:
         df = xls.parse(aba)
 
@@ -124,30 +127,32 @@ if uploaded_file:
                 st.success("Avaliação salva")
 
     # ============================
-# Consolidação de notas por processo (para PDF)
-# ============================
-resultados_canvas = {}
+    # CONSOLIDAÇÃO PARA PDF
+    # ============================
+    resultados_canvas = {}
 
     for aba in xls.sheet_names:
-    df = xls.parse(aba)
+        df = xls.parse(aba)
 
-    if aba in st.session_state.avaliacoes:
-        df[["Resposta", "Justificativa"]] = st.session_state.avaliacoes[aba]
-    else:
-        df["Resposta"] = "NA"
-        df["Justificativa"] = ""
+        if aba in st.session_state.avaliacoes:
+            df[["Resposta", "Justificativa"]] = st.session_state.avaliacoes[aba]
+        else:
+            df["Resposta"] = "NA"
+            df["Justificativa"] = ""
 
-    proc = df[df["Tipo"] == "Procedimento"]
-    acomp = df[df["Tipo"] == "Acompanhamento"]
+        proc = df[df["Tipo"] == "Procedimento"]
+        acomp = df[df["Tipo"] == "Acompanhamento"]
 
-    nota_proc = calcular_nota(proc)
-    nota_acomp = calcular_nota(acomp)
+        nota_proc = calcular_nota(proc)
+        nota_acomp = calcular_nota(acomp)
 
-    # Nota média simples do processo
-    nota_final = round((nota_proc + nota_acomp) / 2, 2)
+        resultados_canvas[aba] = round((nota_proc + nota_acomp) / 2, 2)
 
-    resultados_canvas[aba] = nota_final
-st.subheader("Comentários (Ruim / Crítico)")
+    # ============================
+    # COMENTÁRIOS
+    # ============================
+    st.subheader("Comentários (Ruim / Crítico)")
+
     for aba, dados in st.session_state.avaliacoes.items():
         df_base = xls.parse(aba)
         df_base[["Resposta", "Justificativa"]] = dados
@@ -158,6 +163,7 @@ st.subheader("Comentários (Ruim / Crítico)")
             for _, row in problemas.iterrows():
                 st.markdown(f"**{row['Pergunta']}** ({row['Resposta']})")
                 st.write(row["Justificativa"])
+
 meta = {
     "Projeto": nome_projeto,
     "Cliente": cliente,
