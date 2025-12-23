@@ -188,9 +188,11 @@ if st.button("📄 Gerar PDF Executivo"):
         mime="application/pdf"
     )
 
-if stpdf_comp = gerar_pdf_completo(
+pdf_comp = gerar_pdf_completo(
     st.session_state.avaliacoes,
     meta
+)
+
 )
 
     st.download_button(
