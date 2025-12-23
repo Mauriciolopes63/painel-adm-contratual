@@ -238,6 +238,24 @@ meta = {
     "Data": data_avaliacao.strftime("%d/%m/%Y")
 }
 
+# ============================
+# CONSOLIDAÇÃO DO CANVAS
+# ============================
+resultados_canvas = {}
+
+if uploaded_file and "avaliacoes" in st.session_state:
+    for aba, dados in st.session_state.avaliacoes.items():
+        df_base = xls.parse(aba)
+        df_base[["Resposta", "Justificativa"]] = dados
+
+        proc = df_base[df_base["Tipo"] == "Procedimento"]
+        acomp = df_base[df_base["Tipo"] == "Acompanhamento"]
+
+        nota_proc = calcular_nota(proc)
+        nota_acomp = calcular_nota(acomp)
+
+        resultados_canvas[aba] = round((nota_proc + nota_acomp) / 2, 2)
+
 st.subheader("Relatórios")
 
 if st.button("📄 Gerar PDF Executivo"):
