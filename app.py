@@ -188,10 +188,18 @@ if st.button("📄 Gerar PDF Executivo"):
         mime="application/pdf"
     )
 
-pdf_comp = gerar_pdf_completo(
-    st.session_state.avaliacoes,
-    meta
-)
+if st.button("📄 Gerar PDF Completo"):
+    pdf_comp = gerar_pdf_completo(
+        st.session_state.avaliacoes,
+        meta
+    )
+    st.download_button(
+        "Download PDF Completo",
+        data=pdf_comp,
+        file_name="relatorio_completo_adm_contratual.pdf",
+        mime="application/pdf"
+    )
+
 
     st.download_button(
         "Download PDF Completo",
