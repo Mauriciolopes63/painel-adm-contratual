@@ -283,14 +283,13 @@ if st.button("📄 Gerar PDF Executivo"):
 
 
     st.download_button(
-    "Download PDF Completo",
-    data=pdf_comp,
-    file_name="relatorio_completo_adm_contratual.pdf",
-    mime="application/pdf",
-    key="download_pdf_completo"
+        "Download PDF Completo",
+        data=pdf_comp,
+        file_name="relatorio_completo_adm_contratual.pdf",
+        mime="application/pdf",
+        key="download_pdf_completo"
 )
-"application/pdf"
-    
+  
 
 if st.button("📄 Gerar PDF Completo"):
     if not st.session_state.avaliacoes:
