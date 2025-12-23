@@ -279,7 +279,15 @@ if uploaded_file and "avaliacoes" in st.session_state:
         nota_proc = calcular_nota(proc)
         nota_acomp = calcular_nota(acomp)
 
-        resultados_canvas[aba] = round((nota_proc + nota_acomp) / 2, 2)
+        if nota_proc is None and nota_acomp is None:
+            resultados_canvas[aba] = "NA"
+        elif nota_proc is None:
+            resultados_canvas[aba] = nota_acomp
+        elif nota_acomp is None:
+            resultados_canvas[aba] = nota_proc
+        else:
+            resultados_canvas[aba] = round((nota_proc + nota_acomp) / 2, 2)
+
 
 st.subheader("Relatórios")
 
