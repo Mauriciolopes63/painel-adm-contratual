@@ -293,24 +293,21 @@ if st.button("📄 Gerar PDF Executivo"):
     )
 
 if st.button("📄 Gerar PDF Completo"):
-    pdf_comp = gerar_pdf_completo(
-        st.session_state.avaliacoes,
-        meta
-    )
-    st.download_button(
-        "Download PDF Completo",
-        data=pdf_comp,
-        file_name="relatorio_completo_adm_contratual.pdf",
-        mime="application/pdf"
-    )
+    if not st.session_state.avaliacoes:
+        st.warning("Nenhuma avaliação foi salva ainda.")
+    else:
+        pdf_comp = gerar_pdf_completo(
+            st.session_state.avaliacoes,
+            meta
+        )
+        st.download_button(
+            "Download PDF Completo",
+            data=pdf_comp,
+            file_name="relatorio_completo_adm_contratual.pdf",
+            mime="application/pdf",
+            key="download_pdf_completo"
+        )
 
-
-    st.download_button(
-        "Download PDF Completo",
-        data=pdf_comp,
-        file_name="relatorio_completo_adm_contratual.pdf",
-        mime="application/pdf"
-    )
 def gerar_pdf_executivo(dados, respostas, meta):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
