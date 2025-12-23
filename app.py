@@ -123,7 +123,31 @@ if uploaded_file:
                 st.session_state.avaliacoes[aba] = df[["Resposta", "Justificativa"]]
                 st.success("Avaliação salva")
 
-    st.subheader("Comentários (Ruim / Crítico)")
+    # ============================
+# Consolidação de notas por processo (para PDF)
+# ============================
+resultados_canvas = {}
+
+for aba in xls.sheet_names:
+    df = xls.parse(aba)
+
+    if aba in st.session_state.avaliacoes:
+        df[["Resposta", "Justificativa"]] = st.session_state.avaliacoes[aba]
+    else:
+        df["Resposta"] = "NA"
+        df["Justificativa"] = ""
+
+    proc = df[df["Tipo"] == "Procedimento"]
+    acomp = df[df["Tipo"] == "Acompanhamento"]
+
+    nota_proc = calcular_nota(proc)
+    nota_acomp = calcular_nota(acomp)
+
+    # Nota média simples do processo
+    nota_final = round((nota_proc + nota_acomp) / 2, 2)
+
+    resultados_canvas[aba] = nota_final
+st.subheader("Comentários (Ruim / Crítico)")
     for aba, dados in st.session_state.avaliacoes.items():
         df_base = xls.parse(aba)
         df_base[["Resposta", "Justificativa"]] = dados
@@ -145,7 +169,12 @@ meta = {
 st.subheader("Relatórios")
 
 if st.button("📄 Gerar PDF Executivo"):
-    pdf_exec = gerar_pdf_executivo(resultados_canvas, respostas_por_processo, meta)
+    pdf_exec = gerar_pdf_executivo(
+    resultados_canvas,
+    st.session_state.avaliacoes,
+    meta
+)
+
     st.download_button(
         "Download PDF Executivo",
         data=pdf_exec,
@@ -153,8 +182,11 @@ if st.button("📄 Gerar PDF Executivo"):
         mime="application/pdf"
     )
 
-if st.button("📄 Gerar PDF Completo"):
-    pdf_comp = gerar_pdf_completo(respostas_por_processo, meta)
+if stpdf_comp = gerar_pdf_completo(
+    st.session_state.avaliacoes,
+    meta
+)
+
     st.download_button(
         "Download PDF Completo",
         data=pdf_comp,
