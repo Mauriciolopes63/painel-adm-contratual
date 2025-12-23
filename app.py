@@ -193,8 +193,6 @@ pdf_comp = gerar_pdf_completo(
     meta
 )
 
-)
-
     st.download_button(
         "Download PDF Completo",
         data=pdf_comp,
