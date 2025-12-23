@@ -290,7 +290,7 @@ if st.button("📄 Gerar PDF Executivo"):
     key="download_pdf_completo"
 )
 "application/pdf"
-    )
+    
 
 if st.button("📄 Gerar PDF Completo"):
     if not st.session_state.avaliacoes:
