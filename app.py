@@ -132,13 +132,15 @@ def calcular_nota(df):
 def status_por_nota(nota):
     if nota is None:
         return "NA"
-    if nota >= 8:
+    elif nota >= 3.5:
         return "Bom"
-    if nota >= 6:
+    elif nota >= 2.5:
         return "Médio"
-    if nota >= 4:
+    elif nota >= 1.5:
         return "Ruim"
-    return "Crítico"
+    else:
+        return "Crítico"
+
 
 uploaded_file = st.file_uploader("Carregar Excel do Projeto", type=["xlsx"])
 
