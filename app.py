@@ -113,12 +113,21 @@ CORES = {
 }
 
 def calcular_nota(df):
-    df_calc = df[df["Resposta"] != "NA"].copy()
-    if df_calc.empty:
+    mapa = {
+        "Bom": 4,
+        "Médio": 3,
+        "Ruim": 2,
+        "Crítico": 1
+    }
+
+    notas = df["Resposta"].map(mapa)
+    notas_validas = notas.dropna()
+
+    if notas_validas.empty:
         return None
-    df_calc["Valor"] = df_calc["Resposta"].map(VALORES)
-    nota = (df_calc["Valor"] * df_calc["Peso"]).sum() / df_calc["Peso"].sum()
-    return round(nota, 2)
+
+    return round(notas_validas.mean(), 2)
+
 
 def status_por_nota(nota):
     if nota is None:
@@ -218,7 +227,15 @@ if uploaded_file:
         nota_proc = calcular_nota(proc)
         nota_acomp = calcular_nota(acomp)
 
-        resultados_canvas[aba] = round((nota_proc + nota_acomp) / 2, 2)
+        if nota_proc is None and nota_acomp is None:
+            resultados_canvas[aba] = "NA"
+        elif nota_proc is None:
+            resultados_canvas[aba] = nota_acomp
+        elif nota_acomp is None:
+            resultados_canvas[aba] = nota_proc
+        else:
+            resultados_canvas[aba] = round((nota_proc + nota_acomp) / 2, 2)
+
 
     # ============================
     # COMENTÁRIOS
