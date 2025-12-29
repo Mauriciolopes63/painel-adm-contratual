@@ -145,6 +145,7 @@ def status_por_nota(nota):
     else:
         return "Crítico"
 
+
 uploaded_file = st.file_uploader("Carregar Excel do Projeto", type=["xlsx"])
 
 if uploaded_file:
@@ -177,8 +178,8 @@ if uploaded_file:
         status_acomp = status_por_nota(nota_acomp)
 
         with st.expander(
-            f"{aba} | Procedimentos: {CORES[status_proc]} {nota_proc} | "
-            f"Acompanhamento: {CORES[status_acomp]} {nota_acomp}"
+           f"{aba} | Procedimentos: {CORES[status_proc]} {status_proc} | "
+f"Acompanhamento: {CORES[status_acomp]} {status_acomp}"
         ):
             st.markdown("### Procedimentos")
             for i, row in proc.iterrows():
@@ -215,31 +216,23 @@ if uploaded_file:
     # ============================
     # CONSOLIDAÇÃO PARA PDF
     # ============================
-    resultados_canvas = {}
+  resultados_canvas[aba] = {
+    "nota": None,
+    "status": "NA"
+}
 
-    for aba in xls.sheet_names:
-        df = xls.parse(aba)
-
-        if aba in st.session_state.avaliacoes:
-            df[["Resposta", "Justificativa"]] = st.session_state.avaliacoes[aba]
-        else:
-            df["Resposta"] = "NA"
-            df["Justificativa"] = ""
-
-        proc = df[df["Tipo"] == "Procedimento"]
-        acomp = df[df["Tipo"] == "Acompanhamento"]
-
-        nota_proc = calcular_nota(proc)
-        nota_acomp = calcular_nota(acomp)
-
-        if nota_proc is None and nota_acomp is None:
-            resultados_canvas[aba] = "NA"
-        elif nota_proc is None:
-            resultados_canvas[aba] = nota_acomp
-        elif nota_acomp is None:
-            resultados_canvas[aba] = nota_proc
-        else:
-            resultados_canvas[aba] = round((nota_proc + nota_acomp) / 2, 2)
+if nota_proc is None and nota_acomp is None:
+    pass
+elif nota_proc is None:
+    resultados_canvas[aba]["nota"] = nota_acomp
+    resultados_canvas[aba]["status"] = status_por_nota(nota_acomp)
+elif nota_acomp is None:
+    resultados_canvas[aba]["nota"] = nota_proc
+    resultados_canvas[aba]["status"] = status_por_nota(nota_proc)
+else:
+    nota_final = (nota_proc + nota_acomp) / 2
+    resultados_canvas[aba]["nota"] = round(nota_final, 4)
+    resultados_canvas[aba]["status"] = status_por_nota(nota_final)
 
 
     # ============================
