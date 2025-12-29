@@ -160,57 +160,85 @@ if uploaded_file:
     # AVALIAÇÃO POR ABA
     # ============================
     for aba in xls.sheet_names:
-        df = xls.parse(aba)
+    df = xls.parse(aba)
 
-        if aba in st.session_state.avaliacoes:
-            df[["Resposta", "Justificativa"]] = st.session_state.avaliacoes[aba]
-        else:
-            df["Resposta"] = "NA"
-            df["Justificativa"] = ""
+    if aba in st.session_state.avaliacoes:
+        df[["Resposta", "Justificativa"]] = st.session_state.avaliacoes[aba]
+    else:
+        df["Resposta"] = "NA"
+        df["Justificativa"] = ""
 
-        proc = df[df["Tipo"] == "Procedimento"]
-        acomp = df[df["Tipo"] == "Acompanhamento"]
+    proc = df[df["Tipo"] == "Procedimento"]
+    acomp = df[df["Tipo"] == "Acompanhamento"]
 
-        nota_proc = calcular_nota(proc)
-        nota_acomp = calcular_nota(acomp)
+    nota_proc = calcular_nota(proc)
+    nota_acomp = calcular_nota(acomp)
 
-        status_proc = status_por_nota(nota_proc)
-        status_acomp = status_por_nota(nota_acomp)
+    status_proc = status_por_nota(nota_proc)
+    status_acomp = status_por_nota(nota_acomp)
 
-        with st.expander(
-           f"{aba} | {CORES[resultados_canvas[aba]['status']]} {resultados_canvas[aba]['status']}"
-        ):
-            st.markdown("### Procedimentos")
-            for i, row in proc.iterrows():
-                resposta = st.selectbox(
-                    row["Pergunta"],
-                    ["Bom", "Médio", "Ruim", "Crítico", "NA"],
-                    key=f"{aba}_{i}_p"
+    resultados_canvas[aba] = {
+        "nota": None,
+        "status": "NA"
+    }
+
+    if nota_proc is None and nota_acomp is None:
+        pass
+    elif nota_proc is None:
+        resultados_canvas[aba]["nota"] = nota_acomp
+        resultados_canvas[aba]["status"] = status_por_nota(nota_acomp)
+    elif nota_acomp is None:
+        resultados_canvas[aba]["nota"] = nota_proc
+        resultados_canvas[aba]["status"] = status_por_nota(nota_proc)
+    else:
+        nota_final = (nota_proc + nota_acomp) / 2
+        resultados_canvas[aba]["nota"] = round(nota_final, 4)
+        resultados_canvas[aba]["status"] = status_por_nota(nota_final)
+
+    with st.expander(
+        f"{aba} | "
+        f"Procedimentos: {CORES[status_proc]} {status_proc} | "
+        f"Acompanhamento: {CORES[status_acomp]} {status_acomp}"
+    ):
+        st.markdown("### Procedimentos")
+        for i, row in proc.iterrows():
+            resposta = st.selectbox(
+                row["Pergunta"],
+                ["Bom", "Médio", "Ruim", "Crítico", "NA"],
+                key=f"{aba}_{i}_p"
+            )
+            justificativa = ""
+            if resposta in ["Ruim", "Crítico"]:
+                justificativa = st.text_input(
+                    "Justificativa",
+                    key=f"{aba}_{i}_pj"
                 )
-                justificativa = ""
-                if resposta in ["Ruim", "Crítico"]:
-                    justificativa = st.text_input("Justificativa", key=f"{aba}_{i}_pj")
 
-                df.at[i, "Resposta"] = resposta
-                df.at[i, "Justificativa"] = justificativa
+            df.at[i, "Resposta"] = resposta
+            df.at[i, "Justificativa"] = justificativa
 
-            st.markdown("### Acompanhamento")
-            for i, row in acomp.iterrows():
-                resposta = st.selectbox(
-                    row["Pergunta"],
-                    ["Bom", "Médio", "Ruim", "Crítico", "NA"],
-                    key=f"{aba}_{i}_a"
+        st.markdown("### Acompanhamento")
+        for i, row in acomp.iterrows():
+            resposta = st.selectbox(
+                row["Pergunta"],
+                ["Bom", "Médio", "Ruim", "Crítico", "NA"],
+                key=f"{aba}_{i}_a"
+            )
+            justificativa = ""
+            if resposta in ["Ruim", "Crítico"]:
+                justificativa = st.text_input(
+                    "Justificativa",
+                    key=f"{aba}_{i}_aj"
                 )
-                justificativa = ""
-                if resposta in ["Ruim", "Crítico"]:
-                    justificativa = st.text_input("Justificativa", key=f"{aba}_{i}_aj")
 
-                df.at[i, "Resposta"] = resposta
-                df.at[i, "Justificativa"] = justificativa
+            df.at[i, "Resposta"] = resposta
+            df.at[i, "Justificativa"] = justificativa
 
-            if st.button("Salvar Avaliação", key=f"salvar_{aba}"):
-                st.session_state.avaliacoes[aba] = df[["Resposta", "Justificativa"]]
-                st.success("Avaliação salva")
+        if st.button("Salvar Avaliação", key=f"salvar_{aba}"):
+            st.session_state.avaliacoes[aba] = df[["Resposta", "Justificativa"]]
+            st.success("Avaliação salva")
+            st.rerun()
+
 
     # ============================
     # CONSOLIDAÇÃO PARA PDF
