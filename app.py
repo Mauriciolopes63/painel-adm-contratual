@@ -178,8 +178,7 @@ if uploaded_file:
         status_acomp = status_por_nota(nota_acomp)
 
         with st.expander(
-           f"{aba} | Procedimentos: {CORES[status_proc]} {status_proc} | "
-f"Acompanhamento: {CORES[status_acomp]} {status_acomp}"
+           f"{aba} | {CORES[resultados_canvas[aba]['status']]} {resultados_canvas[aba]['status']}"
         ):
             st.markdown("### Procedimentos")
             for i, row in proc.iterrows():
