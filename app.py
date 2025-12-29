@@ -120,13 +120,18 @@ def calcular_nota(df):
         "Crítico": 1.0
     }
 
-    valores = df["Resposta"].map(mapa)
-    valores_validos = valores.dropna()
+    df_validos = df[df["Resposta"].isin(mapa.keys())]
 
-    if valores_validos.empty:
+    if df_validos.empty:
         return None
 
-    return round(valores_validos.mean(), 4)
+    valores = df_validos["Resposta"].map(mapa)
+    pesos = df_validos["Peso"]
+
+    nota = (valores * pesos).sum() / pesos.sum()
+
+    return round(nota, 4)
+
 
 def status_por_nota(nota):
     if nota is None:
