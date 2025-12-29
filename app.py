@@ -114,20 +114,19 @@ CORES = {
 
 def calcular_nota(df):
     mapa = {
-        "Bom": 4,
-        "Médio": 3,
-        "Ruim": 2,
-        "Crítico": 1
+        "Bom": 0.0,
+        "Médio": 0.3333,
+        "Ruim": 0.6667,
+        "Crítico": 1.0
     }
 
-    notas = df["Resposta"].map(mapa)
-    notas_validas = notas.dropna()
+    valores = df["Resposta"].map(mapa)
+    valores_validos = valores.dropna()
 
-    if notas_validas.empty:
+    if valores_validos.empty:
         return None
 
-    return round(notas_validas.mean(), 2)
-
+    return round(valores_validos.mean(), 4)
 
 def status_por_nota(nota):
     if nota is None:
