@@ -244,9 +244,7 @@ if uploaded_file:
     # CONSOLIDAÇÃO PARA PDF
     # ============================
  
-  if nota_proc is None and nota_acomp is None:
-    pass
-  elif nota_proc is None:
+   elif nota_proc is None:
     resultados_canvas[aba]["nota"] = nota_acomp
     resultados_canvas[aba]["status"] = status_por_nota(nota_acomp)
   elif nota_acomp is None:
