@@ -182,18 +182,7 @@ if uploaded_file:
         "status": "NA"
     }
 
-    if nota_proc is None and nota_acomp is None:
-        pass
-    elif nota_proc is None:
-        resultados_canvas[aba]["nota"] = nota_acomp
-        resultados_canvas[aba]["status"] = status_por_nota(nota_acomp)
-    elif nota_acomp is None:
-        resultados_canvas[aba]["nota"] = nota_proc
-        resultados_canvas[aba]["status"] = status_por_nota(nota_proc)
-    else:
-        nota_final = (nota_proc + nota_acomp) / 2
-        resultados_canvas[aba]["nota"] = round(nota_final, 4)
-        resultados_canvas[aba]["status"] = status_por_nota(nota_final)
+   
 
     with st.expander(
         f"{aba} | "
