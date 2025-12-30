@@ -160,11 +160,11 @@ if uploaded_file:
     # AVALIAÇÃO POR ABA
     # ============================
     for aba in xls.sheet_names:
-    df = xls.parse(aba)
+        df = xls.parse(aba)
 
-    if aba in st.session_state.avaliacoes:
+        if aba in st.session_state.avaliacoes:
         df[["Resposta", "Justificativa"]] = st.session_state.avaliacoes[aba]
-    else:
+        else:
         df["Resposta"] = "NA"
         df["Justificativa"] = ""
 
