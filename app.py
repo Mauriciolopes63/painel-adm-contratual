@@ -1,6 +1,45 @@
 import streamlit as st
 import pandas as pd
 
+VALOR_RESPOSTA = {
+    "Bom": 0,
+    "Médio": 0.3333,
+    "Ruim": 0.6667,
+    "Crítico": 1
+}
+
+def calcular_media_ponderada(df):
+    if "Peso" not in df.columns:
+        return None
+
+    total_peso = 0
+    soma = 0
+
+    for _, row in df.iterrows():
+        resposta = row["Resposta"]
+        peso = row["Peso"]
+
+        if resposta in VALOR_RESPOSTA:
+            soma += VALOR_RESPOSTA[resposta] * peso
+            total_peso += peso
+
+    if total_peso == 0:
+        return None
+
+    return soma / total_peso
+
+
+def semaforo(media):
+    if media is None:
+        return "⚪"
+    if media <= 0.25:
+        return "🟢"
+    if media <= 0.50:
+        return "🟡"
+    if media < 0.75:
+        return "🟠"
+    return "🔴"
+
 st.set_page_config(
     page_title="Painel Administração Contratual",
     layout="wide"
