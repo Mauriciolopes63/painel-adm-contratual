@@ -62,10 +62,10 @@ data_avaliacao_usuario = st.date_input(
     value=datetime.now().date()
 )
 
-hora_brasil = datetime.utcnow() - timedelta(hours=3)
-hora_formatada = hora_brasil.strftime("%H:%M")
-
-st.markdown(f"**Hora de registro:** {hora_formatada} (Brasil)")
+hora_avaliacao_usuario = st.time_input(
+    "Hora da avaliação",
+    value=(datetime.utcnow() - timedelta(hours=3)).time()
+)
 
 uploaded_file = st.file_uploader(
     "Carregar Excel do Projeto",
@@ -122,10 +122,10 @@ if uploaded_file:
     st.divider()
 
     if st.button("Salvar Avaliação desta Data"):
-        data_key = f"{data_avaliacao_usuario.strftime('%Y-%m-%d')} {hora_formatada}"
+        data_key = f"{data_avaliacao_usuario.strftime('%Y-%m-%d')} {hora_avaliacao_usuario.strftime('%H:%M')}"
         st.session_state.avaliacoes_por_data[data_key] = st.session_state.avaliacoes.copy()
         st.success(
-            f"✅ Avaliação salva para {data_avaliacao_usuario.strftime('%d/%m/%Y')} às {hora_formatada}"
+            f"✅ Avaliação salva para {data_avaliacao_usuario.strftime('%d/%m/%Y')} às {hora_avaliacao_usuario.strftime('%H:%M')}"
         )
 
 else:
