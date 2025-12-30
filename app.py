@@ -163,10 +163,10 @@ if uploaded_file:
         df = xls.parse(aba)
 
         if aba in st.session_state.avaliacoes:
-        df[["Resposta", "Justificativa"]] = st.session_state.avaliacoes[aba]
+            df[["Resposta", "Justificativa"]] = st.session_state.avaliacoes[aba]
         else:
-        df["Resposta"] = "NA"
-        df["Justificativa"] = ""
+            df["Resposta"] = "NA"
+            df["Justificativa"] = ""
 
     proc = df[df["Tipo"] == "Procedimento"]
     acomp = df[df["Tipo"] == "Acompanhamento"]
