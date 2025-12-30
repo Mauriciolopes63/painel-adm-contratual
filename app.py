@@ -1,133 +1,120 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
+from datetime import datetime
 
-st.set_page_config(
-    page_title="Painel Administração Contratual",
-    layout="wide"
-)
+st.set_page_config(page_title="Painel Administração Contratual", layout="wide")
 
-st.title("Painel Administração Contratual – Piloto Interno")
+# ===============================
+# ESTADOS GLOBAIS
+# ===============================
+if "avaliacoes" not in st.session_state:
+    st.session_state.avaliacoes = {}
 
-# ======================
-# Data da avaliação
-# ======================
-if "data_avaliacao" not in st.session_state:
-    st.session_state.data_avaliacao = date.today()
+if "avaliacoes_por_data" not in st.session_state:
+    st.session_state.avaliacoes_por_data = {}
 
-st.markdown("### 📅 Data da Avaliação")
-st.session_state.data_avaliacao = st.date_input(
-    "Selecione a data da avaliação",
-    value=st.session_state.data_avaliacao
-)
-
-st.divider()
-
-# ======================
-# Funções internas
-# ======================
-VALOR_RESPOSTA = {
-    "Bom": 0,
+# ===============================
+# FUNÇÕES DE NEGÓCIO
+# ===============================
+VALORES = {
+    "Bom": 0.0,
     "Médio": 0.3333,
     "Ruim": 0.6667,
-    "Crítico": 1
+    "Crítico": 1.0,
+    "NA": None
 }
 
 def calcular_media_ponderada(df):
-    if "Peso" not in df.columns:
+    df_validas = df[df["Resposta"] != "NA"].copy()
+    if df_validas.empty:
         return None
 
-    soma = 0
-    total_peso = 0
+    df_validas["valor"] = df_validas["Resposta"].map(VALORES)
+    soma = (df_validas["valor"] * df_validas["Peso"]).sum()
+    peso_total = df_validas["Peso"].sum()
 
-    for _, row in df.iterrows():
-        if row["Resposta"] in VALOR_RESPOSTA:
-            soma += VALOR_RESPOSTA[row["Resposta"]] * row["Peso"]
-            total_peso += row["Peso"]
+    return soma / peso_total if peso_total > 0 else None
 
-    if total_peso == 0:
-        return None
 
-    return soma / total_peso
-
-def semaforo(media):
-    if media is None:
+def cor_por_nota(nota):
+    if nota is None:
         return "⚪"
-    if media <= 0.25:
+    if nota <= 0.25:
         return "🟢"
-    if media <= 0.50:
+    elif nota <= 0.50:
         return "🟡"
-    if media < 0.75:
+    elif nota < 0.75:
         return "🟠"
-    return "🔴"
+    else:
+        return "🔴"
 
-# ======================
-# Upload do Excel
-# ======================
+# ===============================
+# INTERFACE
+# ===============================
+st.title("Painel Administração Contratual")
+
+data_avaliacao = datetime.now().strftime("%d/%m/%Y %H:%M")
+st.markdown(f"**Data da Avaliação:** {data_avaliacao}")
+
 uploaded_file = st.file_uploader(
     "Carregar Excel do Projeto",
     type=["xlsx"]
 )
 
-if uploaded_file is not None:
+if uploaded_file:
     xls = pd.ExcelFile(uploaded_file)
 
-    if "avaliacoes" not in st.session_state:
-        st.session_state.avaliacoes = {}
-
-    st.subheader("Painel Canvas")
+    st.subheader("Canvas do Projeto")
 
     for aba in xls.sheet_names:
-        df_base = xls.parse(aba)
+        df = xls.parse(aba)
 
+        # Inicialização
         if aba not in st.session_state.avaliacoes:
-            df_base["Resposta"] = "NA"
-            df_base["Justificativa"] = ""
-            st.session_state.avaliacoes[aba] = df_base.copy()
-
-        df = st.session_state.avaliacoes[aba]
+            df["Resposta"] = "NA"
+            df["Justificativa"] = ""
+            st.session_state.avaliacoes[aba] = df
+        else:
+            df = st.session_state.avaliacoes[aba]
 
         codigo = df.iloc[0]["Codigo"] if "Codigo" in df.columns else aba
         descricao = df.iloc[0]["Descricao"] if "Descricao" in df.columns else ""
 
-        media = calcular_media_ponderada(df)
-        icone = semaforo(media)
+        nota = calcular_media_ponderada(df)
+        semaforo = cor_por_nota(nota)
 
-        with st.expander(f"{icone} {codigo} – {descricao}", expanded=False):
+        with st.expander(f"{semaforo} {codigo} – {descricao}", expanded=False):
 
-            if "Pergunta" not in df.columns:
-                st.error("Coluna 'Pergunta' não encontrada no Excel.")
-                continue
-
-            df_perguntas = df[df["Pergunta"].notna() & (df["Pergunta"] != "")]
-
-            st.caption(f"Total de perguntas: {len(df_perguntas)}")
-
-            for i, row in df_perguntas.iterrows():
+            for i, row in df.iterrows():
                 st.markdown(f"**{row['Pergunta']}**")
 
-                resposta = st.radio(
+                resposta = st.selectbox(
                     "Avaliação",
                     ["Bom", "Médio", "Ruim", "Crítico", "NA"],
                     index=["Bom", "Médio", "Ruim", "Crítico", "NA"].index(row["Resposta"]),
-                    key=f"{aba}_{i}_resp",
-                    horizontal=True
+                    key=f"{aba}_{i}"
                 )
 
                 justificativa = row["Justificativa"]
-
                 if resposta in ["Ruim", "Crítico"]:
-                    justificativa = st.text_area(
+                    justificativa = st.text_input(
                         "Justificativa",
                         value=justificativa,
-                        key=f"{aba}_{i}_just"
+                        key=f"{aba}_{i}_j"
                     )
-                else:
-                    justificativa = ""
 
                 df.at[i, "Resposta"] = resposta
                 df.at[i, "Justificativa"] = justificativa
 
-                st.divider()
+            st.session_state.avaliacoes[aba] = df
 
-        st.session_state.avaliacoes[aba] = df
+    st.divider()
+
+    if st.button("Salvar Avaliação desta Data"):
+        data_key = datetime.now().strftime("%Y-%m-%d %H:%M")
+        st.session_state.avaliacoes_por_data[data_key] = st.session_state.avaliacoes.copy()
+        st.success(f"✅ Avaliação salva com sucesso em {data_key}")
+
+else:
+    st.info("⬆️ Faça o upload do Excel para iniciar a avaliação.")
+
