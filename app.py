@@ -29,16 +29,23 @@ if uploaded_file:
             codigo = df.iloc[0]["Codigo"] if "Codigo" in df.columns else aba
             descricao = df.iloc[0]["Descricao"] if "Descricao" in df.columns else ""
 
-            with st.expander(f"🧩 {codigo} – {descricao}", expanded=False):
+           with st.expander(f"🧩 {codigo} – {descricao}", expanded=False):
 
-                for i, row in df.iterrows():
-                    st.markdown(f"**{row['Pergunta']}**")
-            
-                    resposta = st.radio(
-                        "Avaliação",
-                        ["Bom", "Médio", "Ruim", "Crítico", "NA"],
-                        index=["Bom", "Médio", "Ruim", "Crítico", "NA"].index(row["Resposta"]),
-                        key=f"{aba}_{i}_resp",
+               df_perguntas = df[df["Pergunta"].notna() & (df["Pergunta"] != "")]
+
+               st.caption(f"Total de perguntas: {len(df_perguntas)}")
+
+               if df_perguntas.empty:
+                   st.warning("Nenhuma pergunta encontrada neste processo.")
+               else:
+                   for i, row in df_perguntas.iterrows():
+                       st.markdown(f"**{row['Pergunta']}**")
+
+                      resposta = st.radio(
+                          "Avaliação",
+                           ["Bom", "Médio", "Ruim", "Crítico", "NA"],
+                           index=["Bom", "Médio", "Ruim", "Crítico", "NA"].index(row["Resposta"]),
+                           key=f"{aba}_{i}_resp",
                         horizontal=True
                     )
 
@@ -52,11 +59,12 @@ if uploaded_file:
                     else:
                         justificativa = ""
 
-                    df.at[i, "Resposta"] = resposta
-                    df.at[i, "Justificativa"] = justificativa
+                     df.at[i, "Resposta"] = resposta
+                     df.at[i, "Justificativa"] = justificativa
 
-                    st.divider()
+                     st.divider()
 
-                st.session_state.avaliacoes[aba] = df
+               st.session_state.avaliacoes[aba] = df
+
 
       
