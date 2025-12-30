@@ -26,26 +26,37 @@ if uploaded_file:
         else:
             df = st.session_state.avaliacoes[aba]
 
-        with st.expander(f"{aba}", expanded=False):
-            for i, row in df.iterrows():
-                resposta = st.selectbox(
-                    row["Pergunta"],
-                    ["Bom", "Médio", "Ruim", "Crítico", "NA"],
-                    index=["Bom", "Médio", "Ruim", "Crítico", "NA"].index(row["Resposta"]),
-                    key=f"{aba}_{i}_resp"
-                )
+            codigo = df.iloc[0]["Codigo"] if "Codigo" in df.columns else aba
+            descricao = df.iloc[0]["Descricao"] if "Descricao" in df.columns else ""
 
-                justificativa = row["Justificativa"]
-                if resposta in ["Ruim", "Crítico"]:
-                    justificativa = st.text_input(
-                        "Justificativa",
-                        value=justificativa,
-                        key=f"{aba}_{i}_just"
+            with st.expander(f"🧩 {codigo} – {descricao}", expanded=False):
+
+                for i, row in df.iterrows():
+                    st.markdown(f"**{row['Pergunta']}**")
+            
+                    resposta = st.radio(
+                        "Avaliação",
+                        ["Bom", "Médio", "Ruim", "Crítico", "NA"],
+                        index=["Bom", "Médio", "Ruim", "Crítico", "NA"].index(row["Resposta"]),
+                        key=f"{aba}_{i}_resp",
+                        horizontal=True
                     )
-                else:
-                    justificativa = ""
 
-                df.at[i, "Resposta"] = resposta
-                df.at[i, "Justificativa"] = justificativa
+                    justificativa = row["Justificativa"]
+                    if resposta in ["Ruim", "Crítico"]:
+                        justificativa = st.text_area(
+                            "Justificativa",
+                            value=justificativa,
+                            key=f"{aba}_{i}_just"
+                        )
+                    else:
+                        justificativa = ""
 
-            st.session_state.avaliacoes[aba] = df
+                    df.at[i, "Resposta"] = resposta
+                    df.at[i, "Justificativa"] = justificativa
+
+                    st.divider()
+
+                st.session_state.avaliacoes[aba] = df
+
+      
