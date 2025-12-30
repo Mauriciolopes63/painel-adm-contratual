@@ -53,8 +53,19 @@ def cor_por_nota(nota):
 # ===============================
 st.title("Painel Administração Contratual")
 
-data_avaliacao = datetime.now().strftime("%d/%m/%Y %H:%M")
-st.markdown(f"**Data da Avaliação:** {data_avaliacao}")
+from datetime import timedelta
+
+st.markdown("### Informações da Avaliação")
+
+data_avaliacao_usuario = st.date_input(
+    "Data da avaliação",
+    value=datetime.now().date()
+)
+
+hora_brasil = datetime.utcnow() - timedelta(hours=3)
+hora_formatada = hora_brasil.strftime("%H:%M")
+
+st.markdown(f"**Hora de registro:** {hora_formatada} (Brasil)")
 
 uploaded_file = st.file_uploader(
     "Carregar Excel do Projeto",
@@ -111,9 +122,11 @@ if uploaded_file:
     st.divider()
 
     if st.button("Salvar Avaliação desta Data"):
-        data_key = datetime.now().strftime("%Y-%m-%d %H:%M")
+        data_key = f"{data_avaliacao_usuario.strftime('%Y-%m-%d')} {hora_formatada}"
         st.session_state.avaliacoes_por_data[data_key] = st.session_state.avaliacoes.copy()
-        st.success(f"✅ Avaliação salva com sucesso em {data_key}")
+        st.success(
+            f"✅ Avaliação salva para {data_avaliacao_usuario.strftime('%d/%m/%Y')} às {hora_formatada}"
+        )
 
 else:
     st.info("⬆️ Faça o upload do Excel para iniciar a avaliação.")
