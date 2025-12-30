@@ -170,16 +170,7 @@ if uploaded_file:
 
     proc = df[df["Tipo"] == "Procedimento"]
     acomp = df[df["Tipo"] == "Acompanhamento"]
-
   
-
-    resultados_canvas[aba] = {
-        "nota": None,
-        "status": "NA"
-    }
-
-   
-
     with st.expander(
         f"{aba} | "
         f"Procedimentos: {CORES[status_proc]} {status_proc} | "
@@ -259,7 +250,6 @@ meta = {
 # ============================
 # CONSOLIDAÇÃO DO CANVAS
 # ============================
-resultados_canvas = {}
 
 if uploaded_file and "avaliacoes" in st.session_state:
     for aba, dados in st.session_state.avaliacoes.items():
