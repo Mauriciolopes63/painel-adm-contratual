@@ -243,11 +243,7 @@ if uploaded_file:
     # ============================
     # CONSOLIDAÇÃO PARA PDF
     # ============================
-  resultados_canvas[aba] = {
-    "nota": None,
-    "status": "NA"
-  }
-
+ 
   if nota_proc is None and nota_acomp is None:
     pass
   elif nota_proc is None:
