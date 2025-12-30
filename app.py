@@ -85,13 +85,13 @@ if uploaded_file is not None:
 
         df = st.session_state.avaliacoes[aba]
 
-       codigo = df.iloc[0]["Codigo"] if "Codigo" in df.columns else aba
-       descricao = df.iloc[0]["Descricao"] if "Descricao" in df.columns else ""
+              codigo = df.iloc[0]["Codigo"] if "Codigo" in df.columns else aba
+              descricao = df.iloc[0]["Descricao"] if "Descricao" in df.columns else ""
 
-       media = calcular_media_ponderada(df)
-       icone = semaforo(media)
+              media = calcular_media_ponderada(df)
+              icone = semaforo(media)
 
-       with st.expander(f"{icone} {codigo} – {descricao}", expanded=False):
+              with st.expander(f"{icone} {codigo} – {descricao}", expanded=False):
 
 
             if "Pergunta" not in df.columns:
