@@ -171,11 +171,7 @@ if uploaded_file:
     proc = df[df["Tipo"] == "Procedimento"]
     acomp = df[df["Tipo"] == "Acompanhamento"]
 
-    nota_proc = calcular_nota(proc)
-    nota_acomp = calcular_nota(acomp)
-
-    status_proc = status_por_nota(nota_proc)
-    status_acomp = status_por_nota(nota_acomp)
+  
 
     resultados_canvas[aba] = {
         "nota": None,
@@ -233,16 +229,7 @@ if uploaded_file:
     # CONSOLIDAÇÃO PARA PDF
     # ============================
  
-   elif nota_proc is None:
-    resultados_canvas[aba]["nota"] = nota_acomp
-    resultados_canvas[aba]["status"] = status_por_nota(nota_acomp)
-  elif nota_acomp is None:
-    resultados_canvas[aba]["nota"] = nota_proc
-    resultados_canvas[aba]["status"] = status_por_nota(nota_proc)
-  else:
-    nota_final = (nota_proc + nota_acomp) / 2
-    resultados_canvas[aba]["nota"] = round(nota_final, 4)
-    resultados_canvas[aba]["status"] = status_por_nota(nota_final)
+ 
 
 
     # ============================
@@ -282,17 +269,7 @@ if uploaded_file and "avaliacoes" in st.session_state:
         proc = df_base[df_base["Tipo"] == "Procedimento"]
         acomp = df_base[df_base["Tipo"] == "Acompanhamento"]
 
-        nota_proc = calcular_nota(proc)
-        nota_acomp = calcular_nota(acomp)
-
-        if nota_proc is None and nota_acomp is None:
-            resultados_canvas[aba] = "NA"
-        elif nota_proc is None:
-            resultados_canvas[aba] = nota_acomp
-        elif nota_acomp is None:
-            resultados_canvas[aba] = nota_proc
-        else:
-            resultados_canvas[aba] = round((nota_proc + nota_acomp) / 2, 2)
+      
 
 
 st.subheader("Relatórios")
