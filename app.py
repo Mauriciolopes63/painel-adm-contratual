@@ -11,31 +11,6 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
 
-
-def gerar_pdf_executivo(resultados_canvas, avaliacoes, meta):
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(2 * cm, height - 2 * cm, "Relatório Executivo – Administração Contratual")
-
-    y = height - 4 * cm
-    c.setFont("Helvetica", 11)
-
-    for processo, nota in resultados_canvas.items():
-        c.drawString(2 * cm, y, f"{processo}: Nota {nota}")
-        y -= 1 * cm
-        if y < 3 * cm:
-            c.showPage()
-            y = height - 3 * cm
-
-    c.showPage()
-    c.save()
-    buffer.seek(0)
-    return buffer
-
-
 def gerar_pdf_completo(avaliacoes, meta):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
@@ -264,22 +239,6 @@ if uploaded_file and "avaliacoes" in st.session_state:
 
 st.subheader("Relatórios")
 
-if st.button("📄 Gerar PDF Executivo"):
-    if not resultados_canvas:
-        st.warning("Nenhuma avaliação foi salva ainda.")
-    else:
-        pdf_exec = gerar_pdf_executivo(
-            resultados_canvas,
-            st.session_state.avaliacoes,
-            meta
-        )
-        st.download_button(
-            "Download PDF Executivo",
-            data=pdf_exec,
-            file_name="relatorio_executivo_adm_contratual.pdf",
-            mime="application/pdf",
-            key="download_pdf_exec"
-        )
 
 if st.button("📄 Gerar PDF Completo"):
     if not st.session_state.avaliacoes:
