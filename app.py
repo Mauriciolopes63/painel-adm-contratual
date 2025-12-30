@@ -8,6 +8,21 @@ st.set_page_config(
 
 st.title("Painel Administração Contratual – Piloto Interno")
 
+from datetime import date
+
+if "data_avaliacao" not in st.session_state:
+    st.session_state.data_avaliacao = date.today()
+
+st.markdown("### 📅 Data da Avaliação")
+
+st.session_state.data_avaliacao = st.date_input(
+    "Selecione a data da avaliação",
+    value=st.session_state.data_avaliacao
+)
+
+st.divider()
+
+
 uploaded_file = st.file_uploader(
     "Carregar Excel do Projeto",
     type=["xlsx"]
