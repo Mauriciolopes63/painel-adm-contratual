@@ -91,6 +91,18 @@ hora_avaliacao_usuario = st.time_input(
 if st.session_state.modo_app is None:
     st.stop()
 
+# ===============================
+# MODO: ABRIR AVALIAÇÃO EXISTENTE
+# ===============================
+
+if st.session_state.modo_app == "abrir":
+
+    st.subheader("Avaliações Salvas")
+
+    if "avaliacoes_por_data" not in st.session_state or not st.session_state.avaliacoes_por_data:
+        st.info("ℹ️ Ainda não existem avaliações salvas.")
+        st.stop()
+
 uploaded_file = st.file_uploader(
     "Carregar Excel do Projeto",
     type=["xlsx"]
