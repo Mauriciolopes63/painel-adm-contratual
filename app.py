@@ -5,6 +5,27 @@ from datetime import datetime
 st.set_page_config(page_title="Painel Administração Contratual", layout="wide")
 
 # ===============================
+# TELA INICIAL – MODO DE USO
+# ===============================
+
+if "modo_app" not in st.session_state:
+    st.session_state.modo_app = None
+
+st.title("Painel Administração Contratual")
+
+st.subheader("O que você deseja fazer?")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("🆕 Nova Avaliação", use_container_width=True):
+        st.session_state.modo_app = "nova"
+
+with col2:
+    if st.button("📂 Abrir Avaliação Existente", use_container_width=True):
+        st.session_state.modo_app = "abrir"
+
+# ===============================
 # ESTADOS GLOBAIS
 # ===============================
 if "avaliacoes" not in st.session_state:
@@ -66,6 +87,9 @@ hora_avaliacao_usuario = st.time_input(
     "Hora da avaliação",
     value=(datetime.utcnow() - timedelta(hours=3)).time()
 )
+
+if st.session_state.modo_app is None:
+    st.stop()
 
 uploaded_file = st.file_uploader(
     "Carregar Excel do Projeto",
