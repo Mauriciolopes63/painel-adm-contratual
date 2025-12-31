@@ -99,9 +99,21 @@ if st.session_state.modo_app == "abrir":
 
     st.subheader("Avaliações Salvas")
 
-    if "avaliacoes_por_data" not in st.session_state or not st.session_state.avaliacoes_por_data:
+    avaliacoes = st.session_state.get("avaliacoes_por_data", {})
+
+    if not avaliacoes:
         st.info("ℹ️ Ainda não existem avaliações salvas.")
         st.stop()
+
+    datas_disponiveis = sorted(avaliacoes.keys(), reverse=True)
+
+    data_selecionada = st.selectbox(
+        "Selecione a data da avaliação",
+        datas_disponiveis
+    )
+
+    st.info("ℹ️ Avaliação carregada. No próximo passo, o Canvas será exibido.")
+    st.stop()
 
 uploaded_file = st.file_uploader(
     "Carregar Excel do Projeto",
