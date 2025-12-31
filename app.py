@@ -145,9 +145,10 @@ if st.session_state.modo_app == "abrir":
         datas_disponiveis
     )
 
-    st.info("ℹ️ Avaliação carregada. No próximo passo, o Canvas será exibido.")
-    st.stop()
-
+    if st.button("📂 Abrir Avaliação Selecionada"):
+        st.session_state.avaliacoes = avaliacoes[data_selecionada]
+        st.success(f"Avaliação de {data_selecionada} carregada.")
+   
 uploaded_file = st.file_uploader(
     "Carregar Excel do Projeto",
     type=["xlsx"]
@@ -205,6 +206,7 @@ if uploaded_file:
     if st.button("Salvar Avaliação desta Data"):
         data_key = f"{data_avaliacao_usuario.strftime('%Y-%m-%d')} {hora_avaliacao_usuario.strftime('%H:%M')}"
         st.session_state.avaliacoes_por_data[data_key] = st.session_state.avaliacoes.copy()
+        salvar_avaliacoes(st.session_state.avaliacoes_por_data)
         st.success(
             f"✅ Avaliação salva para {data_avaliacao_usuario.strftime('%d/%m/%Y')} às {hora_avaliacao_usuario.strftime('%H:%M')}"
         )
