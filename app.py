@@ -1,6 +1,36 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import json
+import os
+
+QUESTIONARIO_FILE = "questionario_base.json"
+AVALIACOES_FILE = "avaliacoes.json"
+
+
+def salvar_questionario_base(dados):
+    with open(QUESTIONARIO_FILE, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False, indent=2)
+
+
+def carregar_questionario_base():
+    if os.path.exists(QUESTIONARIO_FILE):
+        with open(QUESTIONARIO_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return None
+
+
+def salvar_avaliacoes(dados):
+    with open(AVALIACOES_FILE, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False, indent=2)
+
+
+def carregar_avaliacoes():
+    if os.path.exists(AVALIACOES_FILE):
+        with open(AVALIACOES_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
 
 st.set_page_config(page_title="Painel Administração Contratual", layout="wide")
 
@@ -31,8 +61,11 @@ with col2:
 if "avaliacoes" not in st.session_state:
     st.session_state.avaliacoes = {}
 
+# ===============================
+# CARREGAR HISTÓRICO SALVO
+# ===============================
 if "avaliacoes_por_data" not in st.session_state:
-    st.session_state.avaliacoes_por_data = {}
+    st.session_state.avaliacoes_por_data = carregar_avaliacoes()
 
 # ===============================
 # FUNÇÕES DE NEGÓCIO
