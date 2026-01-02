@@ -2,51 +2,71 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-from datetime import datetime, timedelta
-
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
-from reportlab.lib.styles import getSampleStyleSheet
+from datetime import datetime
 from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 
 # ===============================
-# CONFIG
+# CONFIGURAÇÕES
 # ===============================
-st.set_page_config("Painel Administração Contratual", layout="wide")
+st.set_page_config(
+    page_title="Painel Administração Contratual",
+    layout="wide"
+)
 
-AVALIACOES_FILE = "avaliacoes.json"
+ARQUIVO_AVALIACOES = "avaliacoes.json"
 
 # ===============================
 # PERSISTÊNCIA
 # ===============================
 def salvar_avaliacoes(dados):
-    with open(AVALIACOES_FILE, "w", encoding="utf-8") as f:
+    with open(ARQUIVO_AVALIACOES, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=2)
 
 def carregar_avaliacoes():
-    if os.path.exists(AVALIACOES_FILE):
-        with open(AVALIACOES_FILE, "r", encoding="utf-8") as f:
+    if os.path.exists(ARQUIVO_AVALIACOES):
+        with open(ARQUIVO_AVALIACOES, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
 # ===============================
-# FUNÇÕES DE NEGÓCIO
+# REGRAS DE NEGÓCIO
 # ===============================
 VALORES = {
     "Bom": 0.0,
-    "Médio": 0.33,
-    "Ruim": 0.66,
+    "Médio": 0.3333,
+    "Ruim": 0.6667,
     "Crítico": 1.0,
     "NA": None
 }
 
-def calcular_media(df):
-    validas = df[df["Resposta"] != "NA"].copy()
-    if validas.empty:
+def calcular_media_ponderada(df):
+    df_validas = df[df["Resposta"] != "NA"].copy()
+    if df_validas.empty:
         return None
-    validas["valor"] = validas["Resposta"].map(VALORES)
-    return (validas["valor"] * validas["Peso"]).sum() / validas["Peso"].sum()
 
-def texto_semaforo(nota):
+    df_validas["valor"] = df_validas["Resposta"].map(VALORES)
+    soma = (df_validas["valor"] * df_validas["Peso"]).sum()
+    peso_total = df_validas["Peso"].sum()
+
+    if peso_total == 0:
+        return None
+
+    return soma / peso_total
+
+def semaforo_tela(nota):
+    if nota is None:
+        return "⚪"
+    if nota <= 0.25:
+        return "🟢"
+    elif nota <= 0.50:
+        return "🟡"
+    elif nota < 0.75:
+        return "🟠"
+    else:
+        return "🔴"
+
+def semaforo_pdf(nota):
     if nota is None:
         return "N/A"
     if nota <= 0.25:
@@ -62,42 +82,44 @@ def texto_semaforo(nota):
 # PDF
 # ===============================
 def gerar_pdf(cabecalho, avaliacoes, caminho):
-    styles = getSampleStyleSheet()
-    story = []
+    c = canvas.Canvas(caminho, pagesize=A4)
+    largura, altura = A4
 
-    story.append(Paragraph("<b>Painel Administração Contratual</b>", styles["Title"]))
-    story.append(Spacer(1, 12))
+    y = altura - 50
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(40, y, "RELATÓRIO DE AVALIAÇÃO CONTRATUAL")
 
+    y -= 30
+    c.setFont("Helvetica", 10)
     for k, v in cabecalho.items():
-        story.append(Paragraph(f"<b>{k}:</b> {v}", styles["Normal"]))
+        c.drawString(40, y, f"{k}: {v}")
+        y -= 15
 
-    story.append(PageBreak())
+    y -= 20
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(40, y, "Resumo por Disciplina")
+
+    y -= 20
+    c.setFont("Helvetica", 10)
 
     for aba, registros in avaliacoes.items():
         df = pd.DataFrame(registros)
-        nota = calcular_media(df)
-        status = texto_semaforo(nota)
+        nota = calcular_media_ponderada(df)
+        status = semaforo_pdf(nota)
 
-        story.append(Paragraph(f"<b>{aba}</b> – Status: {status}", styles["Heading2"]))
-        story.append(Spacer(1, 8))
+        c.drawString(40, y, f"{aba}: {status}")
+        y -= 15
 
-        for _, row in df.iterrows():
-            story.append(Paragraph(
-                f"- {row['Pergunta']} | Resposta: {row['Resposta']} | Justificativa: {row.get('Justificativa','')}",
-                styles["Normal"]
-            ))
+        if y < 80:
+            c.showPage()
+            y = altura - 50
 
-        story.append(PageBreak())
-
-    pdf = SimpleDocTemplate(caminho, pagesize=A4)
-    pdf.build(story)
+    c.showPage()
+    c.save()
 
 # ===============================
 # ESTADO
 # ===============================
-if "modo" not in st.session_state:
-    st.session_state.modo = None
-
 if "avaliacoes_por_data" not in st.session_state:
     st.session_state.avaliacoes_por_data = carregar_avaliacoes()
 
@@ -105,71 +127,69 @@ if "avaliacoes" not in st.session_state:
     st.session_state.avaliacoes = {}
 
 # ===============================
-# TELA INICIAL
+# TÍTULO
 # ===============================
 st.title("Painel Administração Contratual")
-st.subheader("O que deseja fazer?")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    if st.button("🆕 Nova Avaliação", use_container_width=True):
-        st.session_state.modo = "nova"
-
-with col2:
-    if st.button("📂 Abrir Avaliação Existente", use_container_width=True):
-        st.session_state.modo = "abrir"
-
-if st.session_state.modo is None:
-    st.stop()
 
 # ===============================
 # CABEÇALHO
 # ===============================
-st.markdown("### Dados do Empreendimento")
+st.subheader("Dados do Projeto")
 
-nome_projeto = st.text_input("Nome do Projeto")
-nome_cliente = st.text_input("Cliente")
-responsavel = st.text_input("Responsável")
+col1, col2, col3 = st.columns(3)
 
-data_avaliacao = st.date_input("Data", datetime.now().date())
-hora_avaliacao = st.time_input(
-    "Hora",
-    (datetime.utcnow() - timedelta(hours=3)).time()
-)
+with col1:
+    nome_projeto = st.text_input("Nome do Projeto")
 
-cabecalho = {
-    "Projeto": nome_projeto,
-    "Cliente": nome_cliente,
-    "Responsável": responsavel,
-    "Data": data_avaliacao.strftime("%d/%m/%Y"),
-    "Hora": hora_avaliacao.strftime("%H:%M")
-}
+with col2:
+    nome_cliente = st.text_input("Cliente")
+
+with col3:
+    responsavel = st.text_input("Responsável")
+
+st.divider()
 
 # ===============================
-# ABRIR AVALIAÇÃO
+# DATA / HORA
 # ===============================
-if st.session_state.modo == "abrir":
-    if not st.session_state.avaliacoes_por_data:
-        st.info("ℹ️ Nenhuma avaliação salva.")
-        st.stop()
+col4, col5 = st.columns(2)
 
+with col4:
+    data_avaliacao = st.date_input("Data da Avaliação", datetime.now().date())
+
+with col5:
+    hora_avaliacao = st.time_input("Hora da Avaliação", datetime.now().time())
+
+# ===============================
+# ABRIR AVALIAÇÃO EXISTENTE
+# ===============================
+st.subheader("Avaliações Salvas")
+
+if st.session_state.avaliacoes_por_data:
     data_sel = st.selectbox(
-        "Selecione a avaliação",
-        sorted(st.session_state.avaliacoes_por_data.keys(), reverse=True)
+        "Selecionar avaliação existente",
+        list(st.session_state.avaliacoes_por_data.keys())
     )
 
-    if st.button("📂 Carregar Avaliação"):
+    if st.button("📂 Abrir Avaliação"):
+        dados = st.session_state.avaliacoes_por_data[data_sel]
         st.session_state.avaliacoes = {
             aba: pd.DataFrame(registros)
-            for aba, registros in st.session_state.avaliacoes_por_data[data_sel].items()
+            for aba, registros in dados.items()
         }
         st.success("Avaliação carregada.")
+else:
+    st.info("Nenhuma avaliação salva.")
+
+st.divider()
 
 # ===============================
 # UPLOAD EXCEL
 # ===============================
-uploaded_file = st.file_uploader("Upload do Excel", type=["xlsx"])
+uploaded_file = st.file_uploader(
+    "Upload do Excel de Perguntas",
+    type=["xlsx"]
+)
 
 if not uploaded_file:
     st.stop()
@@ -191,13 +211,15 @@ for aba in xls.sheet_names:
     else:
         df = st.session_state.avaliacoes[aba]
 
-    nota = calcular_media(df)
-    status = texto_semaforo(nota)
+    nota = calcular_media_ponderada(df)
+    status = semaforo_tela(nota)
 
-    with st.expander(f"{status} – {aba}", expanded=False):
+    with st.expander(f"{status} {aba}", expanded=False):
         for i, row in df.iterrows():
+            st.markdown(f"**{row['Pergunta']}**")
+
             resposta = st.selectbox(
-                row["Pergunta"],
+                "Resposta",
                 ["Bom", "Médio", "Ruim", "Crítico", "NA"],
                 index=["Bom", "Médio", "Ruim", "Crítico", "NA"].index(row["Resposta"]),
                 key=f"{aba}_{i}"
@@ -210,31 +232,44 @@ for aba in xls.sheet_names:
                     value=justificativa,
                     key=f"{aba}_{i}_j"
                 )
+            else:
+                justificativa = ""
 
             df.at[i, "Resposta"] = resposta
             df.at[i, "Justificativa"] = justificativa
 
-        st.session_state.avaliacoes[aba] = df
+    st.session_state.avaliacoes[aba] = df
 
 # ===============================
-# SALVAR / PDF
+# AÇÕES
 # ===============================
 st.divider()
 
+cabecalho = {
+    "Projeto": nome_projeto,
+    "Cliente": nome_cliente,
+    "Responsável": responsavel,
+    "Data": data_avaliacao.strftime("%d/%m/%Y"),
+    "Hora": hora_avaliacao.strftime("%H:%M")
+}
+
+dados_atual = {
+    aba: df.to_dict(orient="records")
+    for aba, df in st.session_state.avaliacoes.items()
+}
+
 if st.button("💾 Salvar Avaliação"):
     chave = f"{data_avaliacao} {hora_avaliacao.strftime('%H:%M')}"
-
-    dados = {
-        aba: df.to_dict(orient="records")
-        for aba, df in st.session_state.avaliacoes.items()
-    }
-
-    st.session_state.avaliacoes_por_data[chave] = dados
+    st.session_state.avaliacoes_por_data[chave] = dados_atual
     salvar_avaliacoes(st.session_state.avaliacoes_por_data)
-
-    st.success("Avaliação salva.")
+    st.success("Avaliação salva com sucesso.")
 
 if st.button("📄 Gerar PDF"):
-    gerar_pdf(cabecalho, dados, "avaliacao.pdf")
+    gerar_pdf(cabecalho, dados_atual, "avaliacao.pdf")
     with open("avaliacao.pdf", "rb") as f:
-        st.download_button("⬇️ Download PDF", f, "avaliacao.pdf")
+        st.download_button(
+            "⬇️ Download PDF",
+            f,
+            file_name="avaliacao.pdf",
+            mime="application/pdf"
+        )
