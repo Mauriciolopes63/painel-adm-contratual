@@ -59,29 +59,23 @@ def semaforo_tela(nota):
         return "🔴"
 
 # =====================================================
-# PDF – SEMÁFORO COM COR REAL
+# PDF – SEMÁFORO SEM TEXTO
 # =====================================================
 def desenhar_semaforo_pdf(c, x, y, nota):
     if nota is None:
         cor = colors.lightgrey
-        texto = "N/A"
     elif nota <= 0.25:
         cor = colors.green
-        texto = "VERDE"
     elif nota <= 0.50:
         cor = colors.yellow
-        texto = "AMARELO"
     elif nota < 0.75:
         cor = colors.orange
-        texto = "LARANJA"
     else:
         cor = colors.red
-        texto = "VERMELHO"
 
     c.setFillColor(cor)
     c.circle(x, y, 6, fill=1)
     c.setFillColor(colors.black)
-    c.drawString(x + 12, y - 4, texto)
 
 def gerar_pdf(cabecalho, avaliacoes, caminho):
     c = canvas.Canvas(caminho, pagesize=A4)
@@ -105,12 +99,14 @@ def gerar_pdf(cabecalho, avaliacoes, caminho):
     c.drawString(40, y, "Resumo Executivo – Canvas")
     y -= 25
 
+    c.setFont("Helvetica", 11)
+
     for aba, registros in avaliacoes.items():
         df = pd.DataFrame(registros)
         nota = calcular_media_ponderada(df)
 
         desenhar_semaforo_pdf(c, 40, y, nota)
-        c.drawString(90, y - 4, aba)
+        c.drawString(60, y - 4, aba)
 
         y -= 22
         if y < 80:
