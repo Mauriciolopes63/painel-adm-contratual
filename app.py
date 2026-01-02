@@ -2,22 +2,21 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
-# ======================================================
-# CONFIGURAÇÕES
-# ======================================================
+# ===============================
+# CONFIGURAÇÃO
+# ===============================
 st.set_page_config(
     page_title="Painel Administração Contratual",
     layout="wide"
 )
 
-
 AVALIACOES_FILE = "avaliacoes.json"
 
-# ======================================================
+# ===============================
 # PERSISTÊNCIA
-# ======================================================
+# ===============================
 def salvar_avaliacoes(dados):
     with open(AVALIACOES_FILE, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=2)
@@ -28,9 +27,9 @@ def carregar_avaliacoes():
             return json.load(f)
     return {}
 
-# ======================================================
-# REGRAS DE AVALIAÇÃO
-# ======================================================
+# ===============================
+# REGRAS DE AVALIAÇÃO (INTERNO)
+# ===============================
 VALORES = {
     "Bom": 0.0,
     "Médio": 0.3333,
@@ -40,14 +39,16 @@ VALORES = {
 }
 
 def calcular_media_ponderada(df):
-    if "Resposta" not in df.columns or "Peso" not in df.columns:
-        return None
+    if "Peso" not in df.columns:
+        df["Peso"] = 1.0
 
     df_validas = df[df["Resposta"] != "NA"].copy()
+
     if df_validas.empty:
         return None
 
     df_validas["valor"] = df_validas["Resposta"].map(VALORES)
+
     soma = (df_validas["valor"] * df_validas["Peso"]).sum()
     peso_total = df_validas["Peso"].sum()
 
@@ -59,7 +60,7 @@ def calcular_media_ponderada(df):
 def cor_por_nota(nota):
     if nota is None:
         return "⚪"
-    elif nota <= 0.25:
+    if nota <= 0.25:
         return "🟢"
     elif nota <= 0.50:
         return "🟡"
@@ -68,101 +69,110 @@ def cor_por_nota(nota):
     else:
         return "🔴"
 
-# ======================================================
+# ===============================
 # ESTADO
-# ======================================================
+# ===============================
 if "avaliacoes_por_data" not in st.session_state:
     st.session_state.avaliacoes_por_data = carregar_avaliacoes()
 
 if "avaliacoes" not in st.session_state:
     st.session_state.avaliacoes = {}
 
-# ======================================================
+if "modo" not in st.session_state:
+    st.session_state.modo = None
+
+# ===============================
 # TÍTULO
-# ======================================================
+# ===============================
 st.title("Painel Administração Contratual")
 
-# ======================================================
-# DATA / HORA DA AVALIAÇÃO
-# ======================================================
-st.markdown("### Informações da Avaliação")
+# ===============================
+# ESCOLHA DO MODO
+# ===============================
+col1, col2 = st.columns(2)
 
-data_avaliacao = st.date_input(
-    "Data da avaliação",
-    datetime.now().date()
-)
+with col1:
+    if st.button("🆕 Nova Avaliação", use_container_width=True):
+        st.session_state.modo = "nova"
 
-hora_avaliacao = st.time_input(
-    "Hora da avaliação",
-    (datetime.utcnow() - timedelta(hours=3)).time()
-)
+with col2:
+    if st.button("📂 Abrir Avaliação Existente", use_container_width=True):
+        st.session_state.modo = "abrir"
+
+if st.session_state.modo is None:
+    st.stop()
 
 # ===============================
 # ABRIR AVALIAÇÃO EXISTENTE
 # ===============================
-st.markdown("### Avaliações Anteriores")
+if st.session_state.modo == "abrir":
 
-avaliacoes_salvas = st.session_state.avaliacoes_por_data
+    avaliacoes = st.session_state.avaliacoes_por_data
 
-abrir_existente = st.checkbox("📂 Abrir avaliação existente")
-
-if abrir_existente:
-    if not avaliacoes_salvas:
+    if not avaliacoes:
         st.info("ℹ️ Ainda não existem avaliações salvas.")
-    else:
-        datas = sorted(avaliacoes_salvas.keys(), reverse=True)
+        st.stop()
 
-        data_escolhida = st.selectbox(
-            "Selecione a data da avaliação",
-            datas
-        )
+    data_escolhida = st.selectbox(
+        "Selecione a avaliação",
+        sorted(avaliacoes.keys(), reverse=True)
+    )
 
-        if st.button("Abrir Avaliação"):
-            st.session_state.avaliacoes = {}
+    if st.button("📂 Abrir Avaliação"):
+        dados = avaliacoes[data_escolhida]
+        st.session_state.avaliacoes = {
+            aba: pd.DataFrame(registros)
+            for aba, registros in dados.items()
+        }
+        st.success(f"Avaliação {data_escolhida} carregada.")
 
-            registros = avaliacoes_salvas[data_escolhida]
+# ===============================
+# DATA / HORA DA AVALIAÇÃO
+# ===============================
+st.markdown("### Informações da Avaliação")
 
-            for aba, linhas in registros.items():
-                st.session_state.avaliacoes[aba] = pd.DataFrame(linhas)
+data_avaliacao = st.date_input("Data da avaliação", datetime.now().date())
+hora_avaliacao = st.time_input("Hora da avaliação", datetime.now().time())
 
-            st.success(f"✅ Avaliação de {data_escolhida} carregada.")
-
-
-# ======================================================
+# ===============================
 # UPLOAD DO EXCEL
-# ======================================================
+# ===============================
 uploaded_file = st.file_uploader(
     "Carregar Excel do Projeto",
     type=["xlsx"]
 )
 
 if not uploaded_file:
-    st.info("⬆️ Faça upload do Excel para iniciar a avaliação.")
+    st.info("⬆️ Faça o upload do Excel para iniciar o Canvas.")
     st.stop()
 
 xls = pd.ExcelFile(uploaded_file)
 
-# ======================================================
-# CANVAS DO PROJETO
-# ======================================================
+# ===============================
+# CANVAS
+# ===============================
 st.subheader("Canvas do Projeto")
 
 for aba in xls.sheet_names:
-    df_excel = xls.parse(aba)
 
-    if aba not in st.session_state.avaliacoes:
-        df_excel["Resposta"] = "NA"
-        df_excel["Justificativa"] = ""
-        st.session_state.avaliacoes[aba] = df_excel
+    if aba in st.session_state.avaliacoes:
+        df = st.session_state.avaliacoes[aba]
     else:
-        df_excel = st.session_state.avaliacoes[aba]
+        df = xls.parse(aba)
+        df["Resposta"] = "NA"
+        df["Justificativa"] = ""
+        st.session_state.avaliacoes[aba] = df
 
-    nota = calcular_media_ponderada(df_excel)
+    codigo = df.iloc[0]["Codigo"] if "Codigo" in df.columns else aba
+    descricao = df.iloc[0]["Descricao"] if "Descricao" in df.columns else ""
+
+    nota = calcular_media_ponderada(df)
     semaforo = cor_por_nota(nota)
 
-    with st.expander(f"{semaforo} {aba}", expanded=False):
+    with st.expander(f"{semaforo} {codigo} – {descricao}", expanded=False):
 
-        for i, row in df_excel.iterrows():
+        for i, row in df.iterrows():
+
             st.markdown(f"**{row['Pergunta']}**")
 
             resposta = st.selectbox(
@@ -180,27 +190,26 @@ for aba in xls.sheet_names:
                     value=justificativa,
                     key=f"{aba}_{i}_j"
                 )
-            else:
-                justificativa = ""
 
-            df_excel.at[i, "Resposta"] = resposta
-            df_excel.at[i, "Justificativa"] = justificativa
+            df.at[i, "Resposta"] = resposta
+            df.at[i, "Justificativa"] = justificativa
 
-        st.session_state.avaliacoes[aba] = df_excel
+        st.session_state.avaliacoes[aba] = df
 
-# ======================================================
+# ===============================
 # SALVAR AVALIAÇÃO
-# ======================================================
+# ===============================
 st.divider()
 
 if st.button("💾 Salvar Avaliação"):
     chave = f"{data_avaliacao.strftime('%Y-%m-%d')} {hora_avaliacao.strftime('%H:%M')}"
 
-    dados_serializaveis = {}
-    for aba, df in st.session_state.avaliacoes.items():
-        dados_serializaveis[aba] = df.to_dict(orient="records")
+    dados = {
+        aba: df.to_dict(orient="records")
+        for aba, df in st.session_state.avaliacoes.items()
+    }
 
-    st.session_state.avaliacoes_por_data[chave] = dados_serializaveis
+    st.session_state.avaliacoes_por_data[chave] = dados
     salvar_avaliacoes(st.session_state.avaliacoes_por_data)
 
     st.success(f"✅ Avaliação salva em {chave}")
