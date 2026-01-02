@@ -78,14 +78,32 @@ for aba in xls.sheet_names:
         df = st.session_state.avaliacoes[aba]
 
     with st.expander(aba):
+
+        # garante que a coluna exista
+        if "Justificativa" not in df.columns:
+            df["Justificativa"] = ""
+
         for i, row in df.iterrows():
+
             resposta = st.selectbox(
                 row["Pergunta"],
                 ["Bom", "Médio", "Ruim", "Crítico", "NA"],
                 index=["Bom", "Médio", "Ruim", "Crítico", "NA"].index(row["Resposta"]),
                 key=f"{aba}_{i}"
             )
+
+            justificativa_atual = row["Justificativa"]
+
+            justificativa = justificativa_atual
+            if resposta in ["Ruim", "Crítico"]:
+                justificativa = st.text_input(
+                    "Justificativa",
+                    value=justificativa_atual,
+                    key=f"{aba}_{i}_j"
+                )
+
             df.at[i, "Resposta"] = resposta
+            df.at[i, "Justificativa"] = justificativa
 
         st.session_state.avaliacoes[aba] = df
 
