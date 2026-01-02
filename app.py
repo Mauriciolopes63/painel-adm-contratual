@@ -137,14 +137,26 @@ hora_avaliacao = st.time_input("Hora da avaliação", datetime.now().time())
 # ===============================
 # UPLOAD DO EXCEL
 # ===============================
-uploaded_file = st.file_uploader(
-    "Carregar Excel do Projeto",
-    type=["xlsx"]
-)
 
-if not uploaded_file:
-    st.info("⬆️ Faça o upload do Excel para iniciar o Canvas.")
-    st.stop()
+uploaded_file = None
+
+# Upload só é obrigatório para nova avaliação
+if st.session_state.modo == "nova":
+    uploaded_file = st.file_uploader(
+        "Carregar Excel do Projeto",
+        type=["xlsx"]
+    )
+
+    if not uploaded_file:
+        st.info("⬆️ Faça o upload do Excel para iniciar o Canvas.")
+        st.stop()
+
+# Para abrir avaliação existente, o Excel é opcional
+if st.session_state.modo == "abrir" and uploaded_file is None:
+    uploaded_file = st.file_uploader(
+        "Carregar Excel do Projeto (somente se quiser revisar perguntas)",
+        type=["xlsx"]
+    )
 
 xls = pd.ExcelFile(uploaded_file)
 
