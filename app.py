@@ -156,9 +156,9 @@ if st.session_state.modo_app == "abrir":
         st.success(f"Avaliação de {data_selecionada} carregada.")
 
    uploaded_file = st.file_uploader(
-    "Carregar Excel do Projeto",
-    type=["xlsx"]
-)
+       "Carregar Excel do Projeto",
+       type=["xlsx"]
+   )
 
 if uploaded_file:
     xls = pd.ExcelFile(uploaded_file)
