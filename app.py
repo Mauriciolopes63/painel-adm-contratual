@@ -151,7 +151,7 @@ if st.session_state.modo_app == "abrir":
         st.session_state.avaliacoes = {}
 
         for aba, registros in aval.items():
-        st.session_state.avaliacoes[aba] = pd.DataFrame(registros)
+            st.session_state.avaliacoes[aba] = pd.DataFrame(registros)
 
         st.success(f"Avaliação de {data_selecionada} carregada.")
 
