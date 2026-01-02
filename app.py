@@ -146,14 +146,14 @@ if st.session_state.modo_app == "abrir":
     )
 
     if st.button("📂 Abrir Avaliação Selecionada"):
-    aval = avaliacoes[data_selecionada]
+        aval = avaliacoes[data_selecionada]
 
-    st.session_state.avaliacoes = {}
+        st.session_state.avaliacoes = {}
 
-    for aba, registros in aval.items():
+        for aba, registros in aval.items():
         st.session_state.avaliacoes[aba] = pd.DataFrame(registros)
 
-    st.success(f"Avaliação de {data_selecionada} carregada.")
+        st.success(f"Avaliação de {data_selecionada} carregada.")
 
    uploaded_file = st.file_uploader(
     "Carregar Excel do Projeto",
