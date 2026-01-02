@@ -12,6 +12,7 @@ st.set_page_config(
     layout="wide"
 )
 
+
 AVALIACOES_FILE = "avaliacoes.json"
 
 # ======================================================
@@ -95,6 +96,37 @@ hora_avaliacao = st.time_input(
     "Hora da avaliação",
     (datetime.utcnow() - timedelta(hours=3)).time()
 )
+
+# ===============================
+# ABRIR AVALIAÇÃO EXISTENTE
+# ===============================
+st.markdown("### Avaliações Anteriores")
+
+avaliacoes_salvas = st.session_state.avaliacoes_por_data
+
+abrir_existente = st.checkbox("📂 Abrir avaliação existente")
+
+if abrir_existente:
+    if not avaliacoes_salvas:
+        st.info("ℹ️ Ainda não existem avaliações salvas.")
+    else:
+        datas = sorted(avaliacoes_salvas.keys(), reverse=True)
+
+        data_escolhida = st.selectbox(
+            "Selecione a data da avaliação",
+            datas
+        )
+
+        if st.button("Abrir Avaliação"):
+            st.session_state.avaliacoes = {}
+
+            registros = avaliacoes_salvas[data_escolhida]
+
+            for aba, linhas in registros.items():
+                st.session_state.avaliacoes[aba] = pd.DataFrame(linhas)
+
+            st.success(f"✅ Avaliação de {data_escolhida} carregada.")
+
 
 # ======================================================
 # UPLOAD DO EXCEL
