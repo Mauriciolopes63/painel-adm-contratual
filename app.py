@@ -3,11 +3,10 @@ import pandas as pd
 import json
 import os
 from datetime import datetime, timedelta
-import copy
 
-# ===============================
-# CONFIGURAÇÕES
-# ===============================
+# =====================================================
+# CONFIGURAÇÃO
+# =====================================================
 st.set_page_config(
     page_title="Painel Administração Contratual",
     layout="wide"
@@ -15,9 +14,9 @@ st.set_page_config(
 
 ARQUIVO_AVALIACOES = "avaliacoes.json"
 
-# ===============================
+# =====================================================
 # PERSISTÊNCIA
-# ===============================
+# =====================================================
 def salvar_avaliacoes(dados):
     with open(ARQUIVO_AVALIACOES, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=2)
@@ -28,9 +27,9 @@ def carregar_avaliacoes():
             return json.load(f)
     return {}
 
-# ===============================
+# =====================================================
 # REGRAS DE NEGÓCIO
-# ===============================
+# =====================================================
 VALORES = {
     "Bom": 0.0,
     "Médio": 0.3333,
@@ -65,9 +64,9 @@ def cor_por_nota(nota):
     else:
         return "🔴"
 
-# ===============================
+# =====================================================
 # ESTADO GLOBAL
-# ===============================
+# =====================================================
 if "avaliacoes_salvas" not in st.session_state:
     st.session_state.avaliacoes_salvas = carregar_avaliacoes()
 
@@ -77,14 +76,14 @@ if "avaliacao_atual" not in st.session_state:
 if "modo" not in st.session_state:
     st.session_state.modo = None
 
-# ===============================
+# =====================================================
 # TÍTULO
-# ===============================
+# =====================================================
 st.title("Painel Administração Contratual")
 
-# ===============================
-# SELEÇÃO DE MODO
-# ===============================
+# =====================================================
+# MENU INICIAL
+# =====================================================
 st.subheader("O que você deseja fazer?")
 
 col1, col2 = st.columns(2)
@@ -101,9 +100,9 @@ with col2:
 if st.session_state.modo is None:
     st.stop()
 
-# ===============================
+# =====================================================
 # ABRIR AVALIAÇÃO EXISTENTE
-# ===============================
+# =====================================================
 if st.session_state.modo == "abrir":
 
     st.subheader("Avaliações Salvas")
@@ -120,67 +119,84 @@ if st.session_state.modo == "abrir":
     )
 
     if st.button("📂 Abrir Avaliação Selecionada"):
-        # RESET TOTAL DO ESTADO ATIVO
         st.session_state.avaliacao_atual = json.loads(
             json.dumps(st.session_state.avaliacoes_salvas[data_escolhida])
         )
-        st.success(f"Avaliação de {data_escolhida} carregada.")
         st.session_state.modo = "editar"
         st.rerun()
 
     st.stop()
 
-# ===============================
-# INFORMAÇÕES DA AVALIAÇÃO
-# ===============================
-st.subheader("Informações da Avaliação")
+# =====================================================
+# CABEÇALHO DA AVALIAÇÃO
+# =====================================================
+st.subheader("Cabeçalho da Avaliação")
 
-data_avaliacao = st.date_input(
-    "Data da avaliação",
-    datetime.now().date()
-)
+if st.session_state.avaliacao_atual is None:
+    st.session_state.avaliacao_atual = {
+        "cabecalho": {
+            "projeto": "",
+            "cliente": "",
+            "responsavel": "",
+            "data": datetime.now().date().strftime("%Y-%m-%d"),
+            "hora": (datetime.utcnow() - timedelta(hours=3)).strftime("%H:%M")
+        },
+        "dados": {}
+    }
 
-hora_avaliacao = st.time_input(
-    "Hora da avaliação",
-    (datetime.utcnow() - timedelta(hours=3)).time()
-)
+cab = st.session_state.avaliacao_atual["cabecalho"]
 
-# ===============================
+col1, col2, col3 = st.columns(3)
+with col1:
+    cab["projeto"] = st.text_input("Nome do Projeto", cab["projeto"])
+with col2:
+    cab["cliente"] = st.text_input("Cliente", cab["cliente"])
+with col3:
+    cab["responsavel"] = st.text_input("Responsável", cab["responsavel"])
+
+col4, col5 = st.columns(2)
+with col4:
+    cab["data"] = st.date_input(
+        "Data da Avaliação",
+        datetime.strptime(cab["data"], "%Y-%m-%d").date()
+    ).strftime("%Y-%m-%d")
+
+with col5:
+    cab["hora"] = st.time_input(
+        "Hora da Avaliação",
+        datetime.strptime(cab["hora"], "%H:%M").time()
+    ).strftime("%H:%M")
+
+# =====================================================
 # UPLOAD DO EXCEL
-# ===============================
+# =====================================================
 uploaded_file = st.file_uploader(
     "Carregar Excel do Projeto",
     type=["xlsx"]
 )
 
 if not uploaded_file:
-    st.info("⬆️ Faça upload do Excel para iniciar a avaliação.")
+    st.info("⬆️ Faça upload do Excel para iniciar.")
     st.stop()
 
 xls = pd.ExcelFile(uploaded_file)
 
-# ===============================
-# INICIALIZAÇÃO DA AVALIAÇÃO
-# ===============================
-if st.session_state.avaliacao_atual is None:
-    st.session_state.avaliacao_atual = {}
-
+# =====================================================
+# INICIALIZAÇÃO DOS DADOS
+# =====================================================
+if not st.session_state.avaliacao_atual["dados"]:
     for aba in xls.sheet_names:
         df = xls.parse(aba)
-
         df["Resposta"] = "NA"
         df["Justificativa"] = ""
+        st.session_state.avaliacao_atual["dados"][aba] = df
 
-        st.session_state.avaliacao_atual[aba] = df
-
-# ===============================
+# =====================================================
 # CANVAS
-# ===============================
+# =====================================================
 st.subheader("Canvas do Projeto")
 
-for aba in xls.sheet_names:
-
-    df = st.session_state.avaliacao_atual[aba]
+for aba, df in st.session_state.avaliacao_atual["dados"].items():
 
     codigo = df.iloc[0]["Codigo"]
     descricao = df.iloc[0]["Descricao"]
@@ -192,7 +208,6 @@ for aba in xls.sheet_names:
 
         for tipo in ["Procedimento", "Acompanhamento"]:
             df_tipo = df[df["Tipo"] == tipo]
-
             if df_tipo.empty:
                 continue
 
@@ -203,7 +218,7 @@ for aba in xls.sheet_names:
                     row["Pergunta"],
                     ["Bom", "Médio", "Ruim", "Crítico", "NA"],
                     index=["Bom", "Médio", "Ruim", "Crítico", "NA"].index(row["Resposta"]),
-                    key=f"{aba}_{idx}_{tipo}"
+                    key=f"{aba}_{idx}"
                 )
 
                 justificativa = row["Justificativa"]
@@ -211,7 +226,7 @@ for aba in xls.sheet_names:
                     justificativa = st.text_input(
                         "Justificativa",
                         value=justificativa,
-                        key=f"{aba}_{idx}_{tipo}_j"
+                        key=f"{aba}_{idx}_j"
                     )
                 else:
                     justificativa = ""
@@ -219,22 +234,22 @@ for aba in xls.sheet_names:
                 df.at[idx, "Resposta"] = resposta
                 df.at[idx, "Justificativa"] = justificativa
 
-        st.session_state.avaliacao_atual[aba] = df
-
-# ===============================
+# =====================================================
 # SALVAR AVALIAÇÃO
-# ===============================
+# =====================================================
 st.divider()
 
 if st.button("💾 Salvar Avaliação"):
-    chave = f"{data_avaliacao.strftime('%Y-%m-%d')} {hora_avaliacao.strftime('%H:%M')}"
+    chave = f"{cab['data']} {cab['hora']}"
 
-    # SNAPSHOT PROFUNDO (ISOLAMENTO TOTAL)
     snapshot = json.loads(
         json.dumps(
             {
-                aba: df.to_dict(orient="records")
-                for aba, df in st.session_state.avaliacao_atual.items()
+                "cabecalho": cab,
+                "dados": {
+                    aba: df.to_dict(orient="records")
+                    for aba, df in st.session_state.avaliacao_atual["dados"].items()
+                }
             }
         )
     )
@@ -242,4 +257,4 @@ if st.button("💾 Salvar Avaliação"):
     st.session_state.avaliacoes_salvas[chave] = snapshot
     salvar_avaliacoes(st.session_state.avaliacoes_salvas)
 
-    st.success(f"✅ Avaliação salva com sucesso em {chave}")
+    st.success(f"✅ Avaliação salva com sucesso ({chave})")
