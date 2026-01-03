@@ -42,7 +42,6 @@ def calcular_media(df):
     df_validas = df[df["Resposta"].isin(VALORES.keys())].copy()
     if df_validas.empty:
         return None
-
     df_validas["valor"] = df_validas["Resposta"].map(VALORES)
     return (df_validas["valor"] * df_validas["Peso"]).sum() / df_validas["Peso"].sum()
 
@@ -67,31 +66,33 @@ def gerar_pdf(cabecalho, avaliacoes):
     styles = getSampleStyleSheet()
     story = []
 
+    # Capa
     story.append(Paragraph("<b>Relatório de Avaliação Contratual</b>", styles["Title"]))
     story.append(Spacer(1, 12))
-
     for k, v in cabecalho.items():
         story.append(Paragraph(f"<b>{k}:</b> {v}", styles["Normal"]))
-
     story.append(Spacer(1, 20))
-    story.append(Paragraph("<b>Resumo por Disciplina</b>", styles["Heading2"]))
 
+    # Resumo
+    story.append(Paragraph("<b>Resumo por Disciplina</b>", styles["Heading2"]))
     tabela = [["Disciplina", "Status"]]
-    for aba, df in avaliacoes.items():
-        tabela.append([aba, semaforo(calcular_media(df))])
+
+    for disciplina, df in avaliacoes.items():
+        tabela.append([disciplina, semaforo(calcular_media(df))])
 
     story.append(Table(tabela, colWidths=[300, 100]))
     story.append(Spacer(1, 20))
 
+    # Justificativas
     story.append(Paragraph("<b>Justificativas</b>", styles["Heading2"]))
     story.append(Spacer(1, 10))
 
-    for aba, df in avaliacoes.items():
+    for disciplina, df in avaliacoes.items():
         for _, row in df.iterrows():
             if row["Resposta"] in ["Ruim", "Crítico"] and row["Justificativa"]:
                 story.append(
                     Paragraph(
-                        f"<b>{aba}</b> {semaforo(calcular_media(df))} – "
+                        f"<b>{disciplina}</b> {semaforo(calcular_media(df))} – "
                         f"{row['Resposta']}: {row['Justificativa']}",
                         styles["Normal"]
                     )
@@ -155,7 +156,6 @@ if st.session_state.modo == "abrir":
 # CABEÇALHO
 # ===============================
 st.markdown("### Dados do Projeto")
-
 nome_projeto = st.text_input("Nome do Projeto")
 cliente = st.text_input("Cliente")
 responsavel = st.text_input("Responsável")
@@ -193,24 +193,33 @@ for aba in xls.sheet_names:
     status = semaforo(calcular_media(base))
 
     with st.expander(f"{status} {aba}", expanded=False):
-        for i, row in base.iterrows():
-            resposta = st.selectbox(
-                row["Pergunta"],
-                ["NA", "Bom", "Médio", "Ruim", "Crítico"],
-                index=["NA", "Bom", "Médio", "Ruim", "Crítico"].index(row["Resposta"]),
-                key=f"{aba}_{i}"
-            )
 
-            justificativa = row["Justificativa"]
-            if resposta in ["Ruim", "Crítico"]:
-                justificativa = st.text_input(
-                    "Justificativa",
-                    value=justificativa,
-                    key=f"{aba}_{i}_j"
+        for tipo in ["Procedimento", "Acompanhamento"]:
+            bloco = base[base["Tipo"] == tipo]
+
+            if bloco.empty:
+                continue
+
+            st.markdown(f"### {tipo}")
+
+            for i, row in bloco.iterrows():
+                resposta = st.selectbox(
+                    row["Pergunta"],
+                    ["NA", "Bom", "Médio", "Ruim", "Crítico"],
+                    index=["NA", "Bom", "Médio", "Ruim", "Crítico"].index(row["Resposta"]),
+                    key=f"{aba}_{i}"
                 )
 
-            base.at[i, "Resposta"] = resposta
-            base.at[i, "Justificativa"] = justificativa
+                justificativa = row["Justificativa"]
+                if resposta in ["Ruim", "Crítico"]:
+                    justificativa = st.text_input(
+                        "Justificativa",
+                        value=justificativa,
+                        key=f"{aba}_{i}_j"
+                    )
+
+                base.at[i, "Resposta"] = resposta
+                base.at[i, "Justificativa"] = justificativa
 
         st.session_state.avaliacao_atual[aba] = base
 
