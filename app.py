@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timedelta
 
 # =====================================================
-# CONFIGURAÇÃO
+# CONFIG
 # =====================================================
 st.set_page_config(
     page_title="Painel Administração Contratual",
@@ -52,7 +52,7 @@ def calcular_media_ponderada(df):
 
     return soma / peso_total
 
-def cor_por_nota(nota):
+def semaforo(nota):
     if nota is None:
         return "⚪"
     if nota <= 0.25:
@@ -65,7 +65,7 @@ def cor_por_nota(nota):
         return "🔴"
 
 # =====================================================
-# ESTADO GLOBAL
+# ESTADO
 # =====================================================
 if "avaliacoes_salvas" not in st.session_state:
     st.session_state.avaliacoes_salvas = carregar_avaliacoes()
@@ -82,18 +82,18 @@ if "modo" not in st.session_state:
 st.title("Painel Administração Contratual")
 
 # =====================================================
-# MENU INICIAL
+# MENU
 # =====================================================
-st.subheader("O que você deseja fazer?")
+st.subheader("O que deseja fazer?")
 
-col1, col2 = st.columns(2)
+c1, c2 = st.columns(2)
 
-with col1:
+with c1:
     if st.button("🆕 Nova Avaliação", use_container_width=True):
         st.session_state.modo = "nova"
         st.session_state.avaliacao_atual = None
 
-with col2:
+with c2:
     if st.button("📂 Abrir Avaliação Existente", use_container_width=True):
         st.session_state.modo = "abrir"
 
@@ -105,22 +105,18 @@ if st.session_state.modo is None:
 # =====================================================
 if st.session_state.modo == "abrir":
 
-    st.subheader("Avaliações Salvas")
-
     if not st.session_state.avaliacoes_salvas:
-        st.info("ℹ️ Nenhuma avaliação encontrada.")
+        st.info("Nenhuma avaliação encontrada.")
         st.stop()
 
     datas = sorted(st.session_state.avaliacoes_salvas.keys(), reverse=True)
 
-    data_escolhida = st.selectbox(
-        "Selecione a avaliação",
-        datas
-    )
+    escolha = st.selectbox("Selecione a avaliação", datas)
 
-    if st.button("📂 Abrir Avaliação Selecionada"):
+    if st.button("Abrir Avaliação"):
+        # CLONE COMPLETO
         st.session_state.avaliacao_atual = json.loads(
-            json.dumps(st.session_state.avaliacoes_salvas[data_escolhida])
+            json.dumps(st.session_state.avaliacoes_salvas[escolha])
         )
         st.session_state.modo = "editar"
         st.rerun()
@@ -128,9 +124,9 @@ if st.session_state.modo == "abrir":
     st.stop()
 
 # =====================================================
-# CABEÇALHO DA AVALIAÇÃO
+# CABEÇALHO
 # =====================================================
-st.subheader("Cabeçalho da Avaliação")
+st.subheader("Cabeçalho")
 
 if st.session_state.avaliacao_atual is None:
     st.session_state.avaliacao_atual = {
@@ -146,29 +142,24 @@ if st.session_state.avaliacao_atual is None:
 
 cab = st.session_state.avaliacao_atual["cabecalho"]
 
-col1, col2, col3 = st.columns(3)
-with col1:
-    cab["projeto"] = st.text_input("Nome do Projeto", cab["projeto"])
-with col2:
-    cab["cliente"] = st.text_input("Cliente", cab["cliente"])
-with col3:
-    cab["responsavel"] = st.text_input("Responsável", cab["responsavel"])
+c1, c2, c3 = st.columns(3)
+cab["projeto"] = c1.text_input("Projeto", cab["projeto"])
+cab["cliente"] = c2.text_input("Cliente", cab["cliente"])
+cab["responsavel"] = c3.text_input("Responsável", cab["responsavel"])
 
-col4, col5 = st.columns(2)
-with col4:
-    cab["data"] = st.date_input(
-        "Data da Avaliação",
-        datetime.strptime(cab["data"], "%Y-%m-%d").date()
-    ).strftime("%Y-%m-%d")
+c4, c5 = st.columns(2)
+cab["data"] = c4.date_input(
+    "Data",
+    datetime.strptime(cab["data"], "%Y-%m-%d").date()
+).strftime("%Y-%m-%d")
 
-with col5:
-    cab["hora"] = st.time_input(
-        "Hora da Avaliação",
-        datetime.strptime(cab["hora"], "%H:%M").time()
-    ).strftime("%H:%M")
+cab["hora"] = c5.time_input(
+    "Hora",
+    datetime.strptime(cab["hora"], "%H:%M").time()
+).strftime("%H:%M")
 
 # =====================================================
-# UPLOAD DO EXCEL
+# UPLOAD EXCEL (OBRIGATÓRIO)
 # =====================================================
 uploaded_file = st.file_uploader(
     "Carregar Excel do Projeto",
@@ -176,85 +167,95 @@ uploaded_file = st.file_uploader(
 )
 
 if not uploaded_file:
-    st.info("⬆️ Faça upload do Excel para iniciar.")
+    st.info("⬆️ Faça upload do Excel para continuar.")
     st.stop()
 
 xls = pd.ExcelFile(uploaded_file)
 
 # =====================================================
-# INICIALIZAÇÃO DOS DADOS
+# PREPARAR DADOS
 # =====================================================
-if not st.session_state.avaliacao_atual["dados"]:
-    for aba in xls.sheet_names:
-        df = xls.parse(aba)
-        df["Resposta"] = "NA"
-        df["Justificativa"] = ""
-        st.session_state.avaliacao_atual["dados"][aba] = df
+dados = {}
+
+for aba in xls.sheet_names:
+    base = xls.parse(aba)
+
+    if aba in st.session_state.avaliacao_atual["dados"]:
+        # AVALIAÇÃO EXISTENTE → converter para DataFrame
+        respostas = pd.DataFrame(
+            st.session_state.avaliacao_atual["dados"][aba]
+        )
+
+        base["Resposta"] = respostas["Resposta"].values
+        base["Justificativa"] = respostas["Justificativa"].values
+    else:
+        base["Resposta"] = "NA"
+        base["Justificativa"] = ""
+
+    dados[aba] = base
+
+st.session_state.avaliacao_atual["dados"] = dados
 
 # =====================================================
 # CANVAS
 # =====================================================
 st.subheader("Canvas do Projeto")
 
-for aba, df in st.session_state.avaliacao_atual["dados"].items():
+for aba, df in dados.items():
 
     codigo = df.iloc[0]["Codigo"]
     descricao = df.iloc[0]["Descricao"]
 
     nota = calcular_media_ponderada(df)
-    semaforo = cor_por_nota(nota)
+    cor = semaforo(nota)
 
-    with st.expander(f"{semaforo} {codigo} – {descricao}", expanded=False):
+    with st.expander(f"{cor} {codigo} – {descricao}"):
 
         for tipo in ["Procedimento", "Acompanhamento"]:
-            df_tipo = df[df["Tipo"] == tipo]
-            if df_tipo.empty:
+            bloco = df[df["Tipo"] == tipo]
+            if bloco.empty:
                 continue
 
             st.markdown(f"### {tipo}")
 
-            for idx, row in df_tipo.iterrows():
-                resposta = st.selectbox(
+            for idx, row in bloco.iterrows():
+                resp = st.selectbox(
                     row["Pergunta"],
                     ["Bom", "Médio", "Ruim", "Crítico", "NA"],
                     index=["Bom", "Médio", "Ruim", "Crítico", "NA"].index(row["Resposta"]),
                     key=f"{aba}_{idx}"
                 )
 
-                justificativa = row["Justificativa"]
-                if resposta in ["Ruim", "Crítico"]:
-                    justificativa = st.text_input(
+                just = row["Justificativa"]
+                if resp in ["Ruim", "Crítico"]:
+                    just = st.text_input(
                         "Justificativa",
-                        value=justificativa,
+                        value=just,
                         key=f"{aba}_{idx}_j"
                     )
                 else:
-                    justificativa = ""
+                    just = ""
 
-                df.at[idx, "Resposta"] = resposta
-                df.at[idx, "Justificativa"] = justificativa
+                df.at[idx, "Resposta"] = resp
+                df.at[idx, "Justificativa"] = just
 
 # =====================================================
-# SALVAR AVALIAÇÃO
+# SALVAR
 # =====================================================
 st.divider()
 
 if st.button("💾 Salvar Avaliação"):
     chave = f"{cab['data']} {cab['hora']}"
 
-    snapshot = json.loads(
-        json.dumps(
-            {
-                "cabecalho": cab,
-                "dados": {
-                    aba: df.to_dict(orient="records")
-                    for aba, df in st.session_state.avaliacao_atual["dados"].items()
-                }
-            }
-        )
-    )
+    snapshot = {
+        "cabecalho": cab,
+        "dados": {
+            aba: df.to_dict(orient="records")
+            for aba, df in st.session_state.avaliacao_atual["dados"].items()
+        }
+    }
 
     st.session_state.avaliacoes_salvas[chave] = snapshot
     salvar_avaliacoes(st.session_state.avaliacoes_salvas)
 
-    st.success(f"✅ Avaliação salva com sucesso ({chave})")
+    st.success("Avaliação salva com sucesso.")
