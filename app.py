@@ -3,159 +3,152 @@ import pandas as pd
 import json
 import os
 from datetime import datetime, timedelta
-
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 )
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 
 # =========================================================
-# CONFIG
+# CONFIGURAÇÕES
 # =========================================================
 st.set_page_config("Painel Administração Contratual", layout="wide")
-AVALIACOES_FILE = "avaliacoes.json"
 
-# =========================================================
-# PERSISTÊNCIA
-# =========================================================
-def salvar_avaliacoes(dados):
-    with open(AVALIACOES_FILE, "w", encoding="utf-8") as f:
-        json.dump(dados, f, ensure_ascii=False, indent=2)
+ARQ_AVALIACOES = "avaliacoes.json"
 
-def carregar_avaliacoes():
-    if os.path.exists(AVALIACOES_FILE):
-        with open(AVALIACOES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
-
-# =========================================================
-# SEMÁFORO (CÁLCULO)
-# =========================================================
 VALORES = {
     "Bom": 0.0,
-    "Médio": 0.3333,
-    "Ruim": 0.6667,
+    "Médio": 0.33,
+    "Ruim": 0.66,
     "Crítico": 1.0,
     "NA": None
 }
 
-def calcular_nota(df):
-    dfv = df[df["Resposta"] != "NA"].copy()
-    if dfv.empty:
+CORES = {
+    "verde": colors.green,
+    "amarelo": colors.yellow,
+    "laranja": colors.orange,
+    "vermelho": colors.red,
+    "cinza": colors.lightgrey
+}
+
+# =========================================================
+# PERSISTÊNCIA
+# =========================================================
+def carregar_avaliacoes():
+    if os.path.exists(ARQ_AVALIACOES):
+        with open(ARQ_AVALIACOES, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+def salvar_avaliacoes(dados):
+    with open(ARQ_AVALIACOES, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False, indent=2)
+
+# =========================================================
+# CÁLCULOS
+# =========================================================
+def media_ponderada(df):
+    df = df[df["Resposta"] != "NA"].copy()
+    if df.empty:
         return None
-    dfv["valor"] = dfv["Resposta"].map(VALORES)
-    return (dfv["valor"] * dfv["Peso"]).sum() / dfv["Peso"].sum()
+    df["valor"] = df["Resposta"].map(VALORES)
+    return (df["valor"] * df["Peso"]).sum() / df["Peso"].sum()
 
-def cor_pdf(nota):
+def cor_semaforo(nota):
     if nota is None:
-        return colors.lightgrey
+        return "cinza"
     if nota <= 0.25:
-        return colors.green
-    elif nota <= 0.50:
-        return colors.yellow
-    elif nota < 0.75:
-        return colors.orange
-    else:
-        return colors.red
+        return "verde"
+    if nota <= 0.5:
+        return "amarelo"
+    if nota < 0.75:
+        return "laranja"
+    return "vermelho"
 
-def cor_app(nota):
-    if nota is None:
-        return "⚪"
-    if nota <= 0.25:
-        return "🟢"
-    elif nota <= 0.50:
-        return "🟡"
-    elif nota < 0.75:
-        return "🟠"
-    else:
-        return "🔴"
+def emoji(cor):
+    return {
+        "verde": "🟢",
+        "amarelo": "🟡",
+        "laranja": "🟠",
+        "vermelho": "🔴",
+        "cinza": "⚪"
+    }[cor]
 
 # =========================================================
 # PDF
 # =========================================================
-def gerar_pdf(cabecalho, avaliacoes, caminho):
+def gerar_pdf(cabecalho, avaliacao, caminho):
     styles = getSampleStyleSheet()
-    doc = SimpleDocTemplate(caminho, pagesize=A4)
-    elementos = []
+    story = []
 
-    # -------- Capa / Cabeçalho
-    elementos.append(Paragraph("<b>RELATÓRIO DE AVALIAÇÃO CONTRATUAL</b>", styles["Title"]))
-    elementos.append(Spacer(1, 12))
+    # Capa
+    story.append(Paragraph("<b>RELATÓRIO DE AVALIAÇÃO CONTRATUAL</b>", styles["Title"]))
+    story.append(Spacer(1, 12))
 
     for k, v in cabecalho.items():
-        elementos.append(Paragraph(f"<b>{k}:</b> {v}", styles["Normal"]))
+        story.append(Paragraph(f"<b>{k}:</b> {v}", styles["Normal"]))
 
-    elementos.append(Spacer(1, 20))
+    story.append(Spacer(1, 24))
 
-    # -------- Resumo dos semáforos
-    elementos.append(Paragraph("<b>Resumo por Disciplina</b>", styles["Heading2"]))
-    elementos.append(Spacer(1, 10))
+    # Resumo por disciplina
+    story.append(Paragraph("<b>Resumo por Disciplina</b>", styles["Heading2"]))
+    story.append(Spacer(1, 12))
 
-    tabela_resumo = []
-    estilos = []
+    tabela = [["", "Disciplina"]]
 
-    for idx, (disc, dados) in enumerate(avaliacoes.items()):
-        df = pd.DataFrame(dados)
-        codigo = df.iloc[0]["Codigo"]
-        descricao = df.iloc[0]["Descricao"]
-        nota = calcular_nota(df)
+    for aba, df in avaliacao.items():
+        nota = media_ponderada(df)
+        cor = cor_semaforo(nota)
+        tabela.append(["■", f"{df.iloc[0]['Codigo']} – {df.iloc[0]['Descricao']}"])
 
-        tabela_resumo.append(["", f"{codigo} – {descricao}"])
-        estilos.append((
-            "BACKGROUND", (0, idx), (0, idx), cor_pdf(nota)
-        ))
+    t = Table(tabela, colWidths=[20, 450])
+    estilo = [
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("ALIGN", (0, 0), (0, -1), "CENTER")
+    ]
 
-    t = Table(tabela_resumo, colWidths=[15, 450])
-    t.setStyle(TableStyle(
-        estilos + [
-            ("GRID", (0,0), (-1,-1), 0.5, colors.black),
-            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-        ]
-    ))
-    elementos.append(t)
+    for i, (aba, df) in enumerate(avaliacao.items(), start=1):
+        cor = CORES[cor_semaforo(media_ponderada(df))]
+        estilo.append(("BACKGROUND", (0, i), (0, i), cor))
 
-    elementos.append(Spacer(1, 30))
+    t.setStyle(TableStyle(estilo))
+    story.append(t)
 
-    # -------- Justificativas (sequenciais)
-    elementos.append(Paragraph("<b>Justificativas</b>", styles["Heading2"]))
-    elementos.append(Spacer(1, 10))
+    # Justificativas
+    story.append(PageBreak())
+    story.append(Paragraph("<b>Justificativas</b>", styles["Heading2"]))
+    story.append(Spacer(1, 12))
 
-    for disc, dados in avaliacoes.items():
-        df = pd.DataFrame(dados)
-        just = df[
-            (df["Resposta"].isin(["Ruim", "Crítico"])) &
-            (df["Justificativa"].str.strip() != "")
-        ]
-        if just.empty:
+    for aba, df in avaliacao.items():
+        df_j = df[df["Resposta"].isin(["Ruim", "Crítico"])]
+        if df_j.empty:
             continue
 
-        codigo = df.iloc[0]["Codigo"]
-        descricao = df.iloc[0]["Descricao"]
-        nota = calcular_nota(df)
-
-        tabela_disc = [
-            ["", f"{codigo} – {descricao}"]
-        ]
-        tdisc = Table(tabela_disc, colWidths=[15, 450])
-        tdisc.setStyle(TableStyle([
-            ("BACKGROUND", (0,0), (0,0), cor_pdf(nota)),
-            ("GRID", (0,0), (-1,-1), 0.5, colors.black),
-            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-        ]))
-        elementos.append(tdisc)
-        elementos.append(Spacer(1, 8))
-
-        for _, r in just.iterrows():
-            elementos.append(
-                Paragraph(f"<b>{r['Tipo']}:</b> {r['Justificativa']}", styles["Normal"])
+        cor = CORES[cor_semaforo(media_ponderada(df))]
+        story.append(
+            Table(
+                [["", f"{df.iloc[0]['Codigo']} – {df.iloc[0]['Descricao']}"]],
+                colWidths=[15, 455],
+                style=TableStyle([
+                    ("BACKGROUND", (0, 0), (0, 0), cor),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey)
+                ])
             )
-            elementos.append(Spacer(1, 6))
+        )
+        story.append(Spacer(1, 6))
 
-        elementos.append(Spacer(1, 15))
+        for _, r in df_j.iterrows():
+            story.append(Paragraph(
+                f"- <b>{r['Resposta']}:</b> {r['Justificativa']}",
+                styles["Normal"]
+            ))
+            story.append(Spacer(1, 4))
 
-    doc.build(elementos)
+        story.append(Spacer(1, 12))
+
+    SimpleDocTemplate(caminho, pagesize=A4).build(story)
 
 # =========================================================
 # ESTADO
@@ -163,108 +156,91 @@ def gerar_pdf(cabecalho, avaliacoes, caminho):
 if "avaliacoes_por_data" not in st.session_state:
     st.session_state.avaliacoes_por_data = carregar_avaliacoes()
 
-if "avaliacoes" not in st.session_state:
-    st.session_state.avaliacoes = {}
+if "avaliacao_atual" not in st.session_state:
+    st.session_state.avaliacao_atual = {}
+
+if "modo" not in st.session_state:
+    st.session_state.modo = None
 
 # =========================================================
-# INTERFACE – CABEÇALHO
+# UI – TOPO
 # =========================================================
 st.title("Painel Administração Contratual")
 
-st.markdown("### Dados da Avaliação")
-c1, c2, c3 = st.columns(3)
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("🆕 Nova Avaliação"):
+        st.session_state.modo = "nova"
+        st.session_state.avaliacao_atual = {}
 
-with c1:
-    projeto = st.text_input("Projeto")
-with c2:
-    cliente = st.text_input("Cliente")
-with c3:
-    responsavel = st.text_input("Responsável")
-
-data_av = st.date_input("Data da Avaliação", datetime.now().date())
-hora_av = st.time_input(
-    "Hora da Avaliação",
-    (datetime.utcnow() - timedelta(hours=3)).time()
-)
+with col2:
+    if st.button("📂 Abrir Avaliação Existente"):
+        st.session_state.modo = "abrir"
 
 # =========================================================
-# AÇÕES
+# ABRIR AVALIAÇÃO
 # =========================================================
-a1, a2 = st.columns(2)
+if st.session_state.modo == "abrir":
+    avals = st.session_state.avaliacoes_por_data
+    if not avals:
+        st.info("Nenhuma avaliação salva.")
+        st.stop()
 
-with a1:
-    if st.button("🆕 Nova Avaliação", use_container_width=True):
-        st.session_state.avaliacoes = {}
-
-with a2:
-    if st.button("📂 Abrir Avaliação Existente", use_container_width=True):
-        if not st.session_state.avaliacoes_por_data:
-            st.info("Ainda não existem avaliações salvas.")
-        else:
-            chave = st.selectbox(
-                "Selecione a avaliação",
-                sorted(st.session_state.avaliacoes_por_data.keys(), reverse=True)
-            )
-            dados = st.session_state.avaliacoes_por_data[chave]
-            st.session_state.avaliacoes = {
-                k: pd.DataFrame(v) for k, v in dados.items()
-            }
-            st.success(f"Avaliação {chave} carregada.")
+    data_sel = st.selectbox("Selecione a avaliação", list(avals.keys()))
+    if st.button("Abrir"):
+        nova = {}
+        for aba, registros in avals[data_sel].items():
+            nova[aba] = pd.DataFrame(registros)
+        st.session_state.avaliacao_atual = nova
+        st.success("Avaliação carregada.")
 
 # =========================================================
-# UPLOAD EXCEL (OBRIGATÓRIO)
+# DADOS DA AVALIAÇÃO
 # =========================================================
-uploaded_file = st.file_uploader("Upload do Excel do Projeto", type=["xlsx"])
-if not uploaded_file:
+st.markdown("### Informações da Avaliação")
+data = st.date_input("Data", datetime.now().date())
+hora = st.time_input("Hora", (datetime.utcnow() - timedelta(hours=3)).time())
+
+# =========================================================
+# UPLOAD EXCEL
+# =========================================================
+arquivo = st.file_uploader("Upload do Excel", type=["xlsx"])
+if not arquivo:
     st.stop()
 
-xls = pd.ExcelFile(uploaded_file)
+xls = pd.ExcelFile(arquivo)
 
 # =========================================================
 # CANVAS
 # =========================================================
-st.subheader("Canvas da Avaliação")
-
 for aba in xls.sheet_names:
-    base = xls.parse(aba)
-
-    if aba not in st.session_state.avaliacoes:
-        base["Resposta"] = "NA"
-        base["Justificativa"] = ""
-        st.session_state.avaliacoes[aba] = base
+    if aba not in st.session_state.avaliacao_atual:
+        df = xls.parse(aba)
+        df["Resposta"] = "NA"
+        df["Justificativa"] = ""
+        st.session_state.avaliacao_atual[aba] = df
     else:
-        base = st.session_state.avaliacoes[aba]
+        df = st.session_state.avaliacao_atual[aba]
 
-    codigo = base.iloc[0]["Codigo"]
-    descricao = base.iloc[0]["Descricao"]
+    nota = media_ponderada(df)
+    cor = cor_semaforo(nota)
 
-    nota = calcular_nota(base)
-    cor = cor_app(nota)
+    with st.expander(f"{emoji(cor)} {df.iloc[0]['Codigo']} – {df.iloc[0]['Descricao']}"):
+        for i, r in df.iterrows():
+            resp = st.selectbox(
+                r["Pergunta"],
+                ["Bom", "Médio", "Ruim", "Crítico", "NA"],
+                index=["Bom", "Médio", "Ruim", "Crítico", "NA"].index(r["Resposta"]),
+                key=f"{aba}_{i}"
+            )
+            df.at[i, "Resposta"] = resp
 
-    with st.expander(f"{cor} {codigo} – {descricao}", expanded=False):
-
-        for tipo in base["Tipo"].unique():
-            st.markdown(f"**{tipo}**")
-            bloco = base[base["Tipo"] == tipo]
-
-            for i, row in bloco.iterrows():
-                resp = st.selectbox(
-                    row["Pergunta"],
-                    ["Bom", "Médio", "Ruim", "Crítico", "NA"],
-                    index=["Bom","Médio","Ruim","Crítico","NA"].index(row["Resposta"]),
-                    key=f"{aba}_{i}"
+            if resp in ["Ruim", "Crítico"]:
+                df.at[i, "Justificativa"] = st.text_input(
+                    "Justificativa",
+                    value=r["Justificativa"],
+                    key=f"{aba}_{i}_j"
                 )
-                base.at[i, "Resposta"] = resp
-
-                if resp in ["Ruim", "Crítico"]:
-                    just = st.text_input(
-                        "Justificativa",
-                        value=row["Justificativa"],
-                        key=f"{aba}_{i}_j"
-                    )
-                    base.at[i, "Justificativa"] = just
-
-        st.session_state.avaliacoes[aba] = base
 
 # =========================================================
 # SALVAR / PDF
@@ -272,21 +248,19 @@ for aba in xls.sheet_names:
 st.divider()
 
 if st.button("💾 Salvar Avaliação"):
-    chave = f"{data_av.strftime('%Y-%m-%d')} {hora_av.strftime('%H:%M')}"
+    chave = f"{data} {hora.strftime('%H:%M')}"
     st.session_state.avaliacoes_por_data[chave] = {
         aba: df.to_dict(orient="records")
-        for aba, df in st.session_state.avaliacoes.items()
+        for aba, df in st.session_state.avaliacao_atual.items()
     }
     salvar_avaliacoes(st.session_state.avaliacoes_por_data)
-    st.success(f"Avaliação salva em {chave}")
+    st.success("Avaliação salva.")
 
 if st.button("📄 Gerar PDF"):
     cab = {
-        "Projeto": projeto,
-        "Cliente": cliente,
-        "Responsável": responsavel,
-        "Data": f"{data_av} {hora_av.strftime('%H:%M')}"
+        "Data": data.strftime("%d/%m/%Y"),
+        "Hora": hora.strftime("%H:%M")
     }
-    gerar_pdf(cab, st.session_state.avaliacoes, "avaliacao.pdf")
+    gerar_pdf(cab, st.session_state.avaliacao_atual, "avaliacao.pdf")
     with open("avaliacao.pdf", "rb") as f:
-        st.download_button("⬇️ Download PDF", f, file_name="avaliacao.pdf")
+        st.download_button("⬇️ Baixar PDF", f, file_name="avaliacao.pdf")
