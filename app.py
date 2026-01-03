@@ -10,10 +10,9 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 
 # ===============================
-# CONFIGURAÇÕES
+# CONFIGURAÇÃO
 # ===============================
 st.set_page_config("Painel Administração Contratual", layout="wide")
-
 ARQUIVO_AVALIACOES = "avaliacoes.json"
 
 # ===============================
@@ -30,7 +29,7 @@ def carregar_avaliacoes():
     return {}
 
 # ===============================
-# FUNÇÕES DE NEGÓCIO
+# REGRAS DE NEGÓCIO
 # ===============================
 VALORES = {
     "Bom": 0.0,
@@ -40,11 +39,12 @@ VALORES = {
 }
 
 def calcular_media(df):
-    validas = df[df["Resposta"].isin(VALORES.keys())].copy()
-    if validas.empty:
+    df_validas = df[df["Resposta"].isin(VALORES.keys())].copy()
+    if df_validas.empty:
         return None
-    validas["valor"] = validas["Resposta"].map(VALORES)
-    return (validas["valor"] * validas["Peso"]).sum() / validas["Peso"].sum()
+
+    df_validas["valor"] = df_validas["Resposta"].map(VALORES)
+    return (df_validas["valor"] * df_validas["Peso"]).sum() / df_validas["Peso"].sum()
 
 def semaforo(nota):
     if nota is None:
@@ -67,34 +67,31 @@ def gerar_pdf(cabecalho, avaliacoes):
     styles = getSampleStyleSheet()
     story = []
 
-    # Capa
     story.append(Paragraph("<b>Relatório de Avaliação Contratual</b>", styles["Title"]))
     story.append(Spacer(1, 12))
+
     for k, v in cabecalho.items():
         story.append(Paragraph(f"<b>{k}:</b> {v}", styles["Normal"]))
+
     story.append(Spacer(1, 20))
-
-    # Resumo
     story.append(Paragraph("<b>Resumo por Disciplina</b>", styles["Heading2"]))
-    tabela = [["Disciplina", "Status"]]
 
-    for disciplina, df in avaliacoes.items():
-        nota = calcular_media(df)
-        tabela.append([disciplina, semaforo(nota)])
+    tabela = [["Disciplina", "Status"]]
+    for aba, df in avaliacoes.items():
+        tabela.append([aba, semaforo(calcular_media(df))])
 
     story.append(Table(tabela, colWidths=[300, 100]))
     story.append(Spacer(1, 20))
 
-    # Justificativas
     story.append(Paragraph("<b>Justificativas</b>", styles["Heading2"]))
     story.append(Spacer(1, 10))
 
-    for disciplina, df in avaliacoes.items():
+    for aba, df in avaliacoes.items():
         for _, row in df.iterrows():
-            if row["Resposta"] in ["Ruim", "Crítico"] and row.get("Justificativa"):
+            if row["Resposta"] in ["Ruim", "Crítico"] and row["Justificativa"]:
                 story.append(
                     Paragraph(
-                        f"<b>{disciplina}</b> {semaforo(calcular_media(df))} – "
+                        f"<b>{aba}</b> {semaforo(calcular_media(df))} – "
                         f"{row['Resposta']}: {row['Justificativa']}",
                         styles["Normal"]
                     )
@@ -138,7 +135,6 @@ st.divider()
 # ABRIR AVALIAÇÃO EXISTENTE
 # ===============================
 if st.session_state.modo == "abrir":
-
     if not st.session_state.avaliacoes_salvas:
         st.info("Nenhuma avaliação salva.")
         st.stop()
@@ -149,10 +145,9 @@ if st.session_state.modo == "abrir":
     )
 
     if st.button("Abrir"):
-        dados = st.session_state.avaliacoes_salvas[data_escolhida]
         st.session_state.avaliacao_atual = {
             aba: pd.DataFrame(registros)
-            for aba, registros in dados.items()
+            for aba, registros in st.session_state.avaliacoes_salvas[data_escolhida].items()
         }
         st.success(f"Avaliação {data_escolhida} carregada.")
 
@@ -160,6 +155,7 @@ if st.session_state.modo == "abrir":
 # CABEÇALHO
 # ===============================
 st.markdown("### Dados do Projeto")
+
 nome_projeto = st.text_input("Nome do Projeto")
 cliente = st.text_input("Cliente")
 responsavel = st.text_input("Responsável")
@@ -174,7 +170,6 @@ hora_avaliacao = st.time_input(
 # UPLOAD EXCEL
 # ===============================
 uploaded_file = st.file_uploader("Upload do Excel", type=["xlsx"])
-
 if not uploaded_file:
     st.stop()
 
@@ -189,24 +184,20 @@ for aba in xls.sheet_names:
     base = xls.parse(aba)
 
     if aba not in st.session_state.avaliacao_atual:
-        base["Resposta"] = "Bom"
+        base["Resposta"] = "NA"
         base["Justificativa"] = ""
         st.session_state.avaliacao_atual[aba] = base
     else:
         base = st.session_state.avaliacao_atual[aba]
 
-    nota = calcular_media(base)
-    status = semaforo(nota)
+    status = semaforo(calcular_media(base))
 
     with st.expander(f"{status} {aba}", expanded=False):
-
         for i, row in base.iterrows():
-            st.markdown(f"**{row['Pergunta']}**")
-
             resposta = st.selectbox(
-                "Resposta",
-                ["Bom", "Médio", "Ruim", "Crítico"],
-                index=["Bom", "Médio", "Ruim", "Crítico"].index(row["Resposta"]),
+                row["Pergunta"],
+                ["NA", "Bom", "Médio", "Ruim", "Crítico"],
+                index=["NA", "Bom", "Médio", "Ruim", "Crítico"].index(row["Resposta"]),
                 key=f"{aba}_{i}"
             )
 
