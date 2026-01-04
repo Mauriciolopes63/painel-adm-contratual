@@ -48,11 +48,10 @@ def salvar_avaliacoes(dados):
 # =====================================================
 # STATUS DA DISCIPLINA
 # =====================================================
-def calcular_status(respostas_dict):
+def calcular_status(respostas):
     prioridade = ["Crítico", "Ruim", "Médio", "Bom"]
-    respostas = respostas_dict.values()
     for p in prioridade:
-        if p in respostas:
+        if p in respostas.values():
             return p
     return "NA"
 
@@ -73,10 +72,10 @@ def gerar_pdf(cab, avaliacao, nome_pdf):
         pagina += 1
         y = altura - 40
 
-    # CABEÇALHO
+    # Cabeçalho
     c.setFont("Helvetica-Bold", 14)
     c.drawString(40, y, "Painel de Administração Contratual")
-    y -= 24
+    y -= 25
 
     c.setFont("Helvetica", 10)
     c.drawString(40, y, f"Projeto: {cab['projeto']}")
@@ -88,7 +87,7 @@ def gerar_pdf(cab, avaliacao, nome_pdf):
     c.drawString(40, y, f"Data: {cab['data']} {cab['hora']}")
     y -= 30
 
-    # RESUMO
+    # Resumo
     c.setFont("Helvetica-Bold", 12)
     c.drawString(40, y, "Resumo Geral")
     y -= 20
@@ -116,7 +115,7 @@ def gerar_pdf(cab, avaliacao, nome_pdf):
 
     nova_pagina()
 
-    # JUSTIFICATIVAS
+    # Justificativas
     c.setFont("Helvetica-Bold", 12)
     c.drawString(40, y, "Justificativas")
     y -= 20
@@ -124,9 +123,7 @@ def gerar_pdf(cab, avaliacao, nome_pdf):
     for fase, grupos in avaliacao.items():
         for grupo, disciplinas in grupos.items():
             for cod, d in disciplinas.items():
-                justificativas = [
-                    j for j in d["justificativas"].values() if j.strip()
-                ]
+                justificativas = [j for j in d["justificativas"].values() if j.strip()]
                 if not justificativas:
                     continue
 
@@ -164,94 +161,71 @@ if "avaliacao_atual" not in st.session_state:
 # =====================================================
 st.title("Painel Administração Contratual")
 
-modo = st.radio(
-    "Modo de uso",
-    ["Nova Avaliação", "Abrir Avaliação Existente"],
-    horizontal=True
-)
+modo = st.radio("Modo", ["Nova Avaliação", "Abrir Avaliação Existente"], horizontal=True)
 
-# =====================================================
-# CABEÇALHO
-# =====================================================
+# Cabeçalho
 st.subheader("Cabeçalho")
-
-cab_projeto = st.text_input("Nome do Projeto")
+cab_projeto = st.text_input("Projeto")
 cab_cliente = st.text_input("Cliente")
 cab_resp = st.text_input("Responsável")
 
 cab_data = st.date_input("Data", datetime.now().date())
-cab_hora = st.time_input(
-    "Hora",
-    (datetime.utcnow() - timedelta(hours=3)).time()
-)
+cab_hora = st.time_input("Hora", (datetime.utcnow() - timedelta(hours=3)).time())
 
-# =====================================================
-# ABRIR AVALIAÇÃO
-# =====================================================
+# Abrir avaliação
 if modo == "Abrir Avaliação Existente":
     chaves = list(st.session_state.avaliacoes_por_data.keys())
     if not chaves:
         st.info("Nenhuma avaliação salva.")
         st.stop()
-
-    chave_sel = st.selectbox("Selecione a avaliação", chaves)
+    chave = st.selectbox("Selecione", chaves)
     st.session_state.avaliacao_atual = json.loads(
-        json.dumps(st.session_state.avaliacoes_por_data[chave_sel])
+        json.dumps(st.session_state.avaliacoes_por_data[chave])
     )
 
-# =====================================================
-# UPLOAD EXCEL
-# =====================================================
+# Upload Excel
 uploaded = st.file_uploader("Upload do Excel", type="xlsx")
 if not uploaded:
     st.stop()
 
 xls = pd.ExcelFile(uploaded)
 
-# =====================================================
-# INICIALIZAÇÃO DA AVALIAÇÃO
-# =====================================================
 if modo == "Nova Avaliação":
     st.session_state.avaliacao_atual = {}
 
+# Inicialização
 for aba in xls.sheet_names:
     df = xls.parse(aba)
-
     codigo = df.iloc[0]["Codigo"]
     descricao = df.iloc[0]["Descricao"]
 
     for _, r in df.iterrows():
+        pergunta = r["Pergunta"]
+        if pd.isna(pergunta) or str(pergunta).strip() == "":
+            continue
+
         fase = r["Fase"]
         grupo = r["Grupo"]
-        pergunta = r["Pergunta"]
 
         st.session_state.avaliacao_atual.setdefault(fase, {})
         st.session_state.avaliacao_atual[fase].setdefault(grupo, {})
         st.session_state.avaliacao_atual[fase][grupo].setdefault(
             codigo,
-            {
-                "descricao": descricao,
-                "respostas": {},
-                "justificativas": {}
-            }
+            {"descricao": descricao, "respostas": {}, "justificativas": {}}
         )
 
         st.session_state.avaliacao_atual[fase][grupo][codigo]["respostas"].setdefault(pergunta, "NA")
         st.session_state.avaliacao_atual[fase][grupo][codigo]["justificativas"].setdefault(pergunta, "")
 
-# =====================================================
-# TELA DE PERGUNTAS
-# =====================================================
+# Tela de perguntas
 for fase, grupos in st.session_state.avaliacao_atual.items():
-    with st.expander(f"> {fase}", expanded=True):
+    with st.expander(f"> {fase}", True):
         for grupo, disciplinas in grupos.items():
-            with st.expander(f"> {grupo}", expanded=True):
+            with st.expander(f"> {grupo}", True):
                 for cod, d in disciplinas.items():
                     status = calcular_status(d["respostas"])
                     with st.expander(f"{STATUS_EMOJI[status]} {cod} – {d['descricao']}"):
-                        base = pd.concat(
-                            [xls.parse(a) for a in xls.sheet_names]
-                        )
+                        base = pd.concat([xls.parse(a) for a in xls.sheet_names])
                         base = base[base["Codigo"] == cod]
 
                         for tipo in ["Procedimento", "Acompanhamento"]:
@@ -261,38 +235,37 @@ for fase, grupos in st.session_state.avaliacao_atual.items():
 
                             st.markdown(f"**{tipo}**")
                             for _, r in bloco.iterrows():
-                                key = f"{fase}|{grupo}|{cod}|{r['Pergunta']}"
+                                pergunta = r["Pergunta"]
+                                if pd.isna(pergunta) or str(pergunta).strip() == "":
+                                    continue
+
+                                key = f"{fase}|{grupo}|{cod}|{pergunta}"
                                 resp = st.selectbox(
-                                    r["Pergunta"],
+                                    pergunta,
                                     STATUS_OPCOES,
-                                    index=STATUS_OPCOES.index(
-                                        d["respostas"][r["Pergunta"]]
-                                    ),
+                                    index=STATUS_OPCOES.index(d["respostas"][pergunta]),
                                     key=key
                                 )
-                                d["respostas"][r["Pergunta"]] = resp
+                                d["respostas"][pergunta] = resp
 
                                 if resp in ["Ruim", "Crítico"]:
-                                    jkey = f"{key}_j"
                                     j = st.text_input(
                                         "Justificativa",
-                                        value=d["justificativas"][r["Pergunta"]],
-                                        key=jkey
+                                        value=d["justificativas"][pergunta],
+                                        key=f"{key}_j"
                                     )
-                                    d["justificativas"][r["Pergunta"]] = j
+                                    d["justificativas"][pergunta] = j
                                 else:
-                                    d["justificativas"][r["Pergunta"]] = ""
+                                    d["justificativas"][pergunta] = ""
 
-# =====================================================
-# SALVAR / PDF
-# =====================================================
+# Salvar / PDF
 st.divider()
 
 if st.button("💾 Salvar Avaliação"):
     chave = f"{cab_data} {cab_hora.strftime('%H:%M')}"
     st.session_state.avaliacoes_por_data[chave] = st.session_state.avaliacao_atual
     salvar_avaliacoes(st.session_state.avaliacoes_por_data)
-    st.success("Avaliação salva com sucesso.")
+    st.success("Avaliação salva.")
 
 if st.button("📄 Gerar PDF"):
     cab = {
