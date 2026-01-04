@@ -257,8 +257,9 @@ for fase, grupos in estrutura.items():
                                     r["Pergunta"],
                                     ["NA", "Bom", "Médio", "Ruim", "Crítico"],
                                     index=["NA","Bom","Médio","Ruim","Crítico"].index(r["Resposta"]),
-                                    key=f"{aba}_{i}"
+                                    key=f"{fase}|{grupo}|{d['codigo']}|{r['Tipo']}|{i}"
                                 )
+
                                 d["df"].at[i, "Resposta"] = resp
                                 if resp in ["Ruim", "Crítico"]:
                                     d["df"].at[i, "Justificativa"] = st.text_input(
