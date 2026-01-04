@@ -3,265 +3,266 @@ import pandas as pd
 import json
 import os
 from datetime import datetime, timedelta
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
-from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
+from reportlab.pdfgen import canvas
 
-# ===============================
+# ======================================================
 # CONFIG
-# ===============================
+# ======================================================
 st.set_page_config("Painel Administração Contratual", layout="wide")
 
-AVALIACOES_FILE = "avaliacoes.json"
+ARQ_AVALIACOES = "avaliacoes.json"
 
-OPCOES = ["Bom", "Médio", "Ruim", "Crítico", "NA"]
+SEMAFORO = {
+    "Bom": "🟢",
+    "Médio": "🟡",
+    "Ruim": "🟠",
+    "Crítico": "🔴",
+    "NA": "⚪"
+}
 
 VALORES = {
     "Bom": 0.0,
-    "Médio": 0.33,
-    "Ruim": 0.66,
-    "Crítico": 1.0,
-    "NA": None
+    "Médio": 0.3333,
+    "Ruim": 0.6667,
+    "Crítico": 1.0
 }
 
-CORES = {
-    "Bom": colors.green,
-    "Médio": colors.yellow,
-    "Ruim": colors.orange,
-    "Crítico": colors.red,
-    "NA": colors.grey
-}
-
-# ===============================
+# ======================================================
 # PERSISTÊNCIA
-# ===============================
+# ======================================================
 def carregar_avaliacoes():
-    if os.path.exists(AVALIACOES_FILE):
-        with open(AVALIACOES_FILE, "r", encoding="utf-8") as f:
+    if os.path.exists(ARQ_AVALIACOES):
+        with open(ARQ_AVALIACOES, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
 def salvar_avaliacoes(dados):
-    with open(AVALIACOES_FILE, "w", encoding="utf-8") as f:
+    with open(ARQ_AVALIACOES, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=2)
 
-# ===============================
-# FUNÇÕES
-# ===============================
+# ======================================================
+# FUNÇÕES DE CÁLCULO
+# ======================================================
 def calcular_status(df):
-    dfv = df[df["Resposta"] != "NA"].copy()
-    if dfv.empty:
+    df = df[df["Resposta"] != "NA"].copy()
+    if df.empty:
         return "NA"
-    dfv["valor"] = dfv["Resposta"].map(VALORES)
-    nota = (dfv["valor"] * dfv["Peso"]).sum() / dfv["Peso"].sum()
-    if nota <= 0.25:
-        return "Bom"
-    elif nota <= 0.5:
-        return "Médio"
-    elif nota < 0.75:
-        return "Ruim"
-    return "Crítico"
+    df["valor"] = df["Resposta"].map(VALORES)
+    media = (df["valor"] * df["Peso"]).sum() / df["Peso"].sum()
 
-# ===============================
+    if media <= 0.25:
+        return "Bom"
+    elif media <= 0.50:
+        return "Médio"
+    elif media < 0.75:
+        return "Ruim"
+    else:
+        return "Crítico"
+
+# ======================================================
+# PDF
+# ======================================================
+def gerar_pdf(cabecalho, dados, nome_arquivo):
+    c = canvas.Canvas(nome_arquivo, pagesize=A4)
+    w, h = A4
+    y = h - 40
+    pagina = 1
+
+    def rodape():
+        c.setFont("Helvetica", 8)
+        c.drawRightString(w - 40, 20, f"Página {pagina}")
+
+    # ---------- CAPA / RESUMO ----------
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(40, y, "Resumo Geral")
+    y -= 30
+
+    for campo, valor in cabecalho.items():
+        c.setFont("Helvetica", 10)
+        c.drawString(40, y, f"{campo}: {valor}")
+        y -= 14
+
+    y -= 20
+
+    for fase, grupos in dados.items():
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(40, y, fase)
+        y -= 18
+
+        for grupo, disciplinas in grupos.items():
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(60, y, grupo)
+            y -= 16
+
+            for d in disciplinas:
+                c.setFont("Helvetica", 10)
+                texto = f"{SEMAFORO[d['status']]} {d['codigo']} – {d['descricao']}"
+                c.drawString(80, y, texto)
+                y -= 14
+
+                if y < 80:
+                    rodape()
+                    c.showPage()
+                    pagina += 1
+                    y = h - 40
+
+    rodape()
+    c.showPage()
+    pagina += 1
+    y = h - 40
+
+    # ---------- JUSTIFICATIVAS ----------
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(40, y, "Justificativas")
+    y -= 30
+
+    for fase, grupos in dados.items():
+        for grupo, disciplinas in grupos.items():
+            for d in disciplinas:
+                if not d["justificativas"]:
+                    continue
+
+                c.setFont("Helvetica-Bold", 10)
+                c.drawString(40, y, f"{SEMAFORO[d['status']]} {fase} / {grupo} / {d['codigo']} – {d['descricao']}")
+                y -= 16
+
+                for j in d["justificativas"]:
+                    c.setFont("Helvetica", 9)
+                    c.drawString(60, y, f"- ({j['tipo']}) {j['texto']}")
+                    y -= 14
+
+                    if y < 80:
+                        rodape()
+                        c.showPage()
+                        pagina += 1
+                        y = h - 40
+
+                y -= 10
+
+    rodape()
+    c.save()
+
+# ======================================================
 # ESTADO
-# ===============================
-if "avaliacoes" not in st.session_state:
-    st.session_state.avaliacoes = carregar_avaliacoes()
+# ======================================================
+if "avaliacoes_salvas" not in st.session_state:
+    st.session_state.avaliacoes_salvas = carregar_avaliacoes()
 
 if "avaliacao_atual" not in st.session_state:
-    st.session_state.avaliacao_atual = None
+    st.session_state.avaliacao_atual = {}
 
-# ===============================
-# TÍTULO
-# ===============================
+# ======================================================
+# INTERFACE
+# ======================================================
 st.title("Painel Administração Contratual")
 
-# ===============================
-# MENU
-# ===============================
-col1, col2 = st.columns(2)
-with col1:
-    nova = st.button("🆕 Nova Avaliação", use_container_width=True)
-with col2:
-    abrir = st.button("📂 Abrir Avaliação Existente", use_container_width=True)
+st.markdown("### Cabeçalho da Avaliação")
+col1, col2, col3 = st.columns(3)
+nome_projeto = col1.text_input("Projeto")
+cliente = col2.text_input("Cliente")
+responsavel = col3.text_input("Responsável")
 
-# ===============================
-# NOVA AVALIAÇÃO
-# ===============================
-if nova:
-    st.session_state.avaliacao_atual = {
-        "cabecalho": {},
-        "dados": {}
-    }
+data = st.date_input("Data", datetime.now().date())
+hora = st.time_input("Hora", (datetime.utcnow() - timedelta(hours=3)).time())
 
-# ===============================
-# ABRIR AVALIAÇÃO
-# ===============================
-if abrir:
-    if not st.session_state.avaliacoes:
+st.divider()
+
+modo = st.radio("Modo", ["Nova Avaliação", "Abrir Avaliação Existente"], horizontal=True)
+
+# ======================================================
+# ABRIR AVALIAÇÃO EXISTENTE
+# ======================================================
+if modo == "Abrir Avaliação Existente":
+    if not st.session_state.avaliacoes_salvas:
         st.info("Nenhuma avaliação salva.")
         st.stop()
 
-    chave = st.selectbox(
-        "Selecione a avaliação",
-        list(st.session_state.avaliacoes.keys())
-    )
+    chave = st.selectbox("Selecione a avaliação", list(st.session_state.avaliacoes_salvas.keys()))
+    st.session_state.avaliacao_atual = st.session_state.avaliacoes_salvas[chave]
 
-    if st.button("Abrir"):
-        st.session_state.avaliacao_atual = json.loads(
-            json.dumps(st.session_state.avaliacoes[chave])
-        )
-
-# ===============================
-# SE NÃO EXISTE AVALIAÇÃO ATUAL
-# ===============================
-if st.session_state.avaliacao_atual is None:
-    st.stop()
-
-# ===============================
-# CABEÇALHO
-# ===============================
-st.subheader("Cabeçalho")
-
-cab = st.session_state.avaliacao_atual["cabecalho"]
-
-cab["Projeto"] = st.text_input("Nome do Projeto", cab.get("Projeto", ""))
-cab["Cliente"] = st.text_input("Cliente", cab.get("Cliente", ""))
-cab["Responsavel"] = st.text_input("Responsável", cab.get("Responsavel", ""))
-cab["Data"] = st.date_input("Data", datetime.now().date())
-cab["Hora"] = st.time_input("Hora", (datetime.utcnow() - timedelta(hours=3)).time())
-
-# ===============================
+# ======================================================
 # UPLOAD EXCEL
-# ===============================
+# ======================================================
 uploaded = st.file_uploader("Upload do Excel", type=["xlsx"])
-
 if not uploaded:
     st.stop()
 
-xls = pd.ExcelFile(uploaded)
+df = pd.read_excel(uploaded)
 
-# ===============================
+# ======================================================
 # CANVAS
-# ===============================
-st.subheader("Avaliação")
+# ======================================================
+for (fase, grupo, codigo, descricao), base in df.groupby(["Fase", "Grupo", "Codigo", "Descricao"]):
+    if codigo not in st.session_state.avaliacao_atual:
+        st.session_state.avaliacao_atual[codigo] = base.assign(Resposta="NA", Justificativa="")
 
-for aba in xls.sheet_names:
-    base = xls.parse(aba)
+    atual = st.session_state.avaliacao_atual[codigo]
+    status = calcular_status(atual)
+    icone = SEMAFORO[status]
 
-    if aba not in st.session_state.avaliacao_atual["dados"]:
-        base["Resposta"] = "NA"
-        base["Justificativa"] = ""
-        st.session_state.avaliacao_atual["dados"][aba] = base
-    else:
-        base = st.session_state.avaliacao_atual["dados"][aba]
-
-    fase = base.iloc[0]["Fase"]
-    grupo = base.iloc[0]["Grupo"]
-    codigo = base.iloc[0]["Codigo"]
-    descricao = base.iloc[0]["Descricao"]
-
-    status = calcular_status(base)
-
-    with st.expander(f"{fase} ▸ {grupo} ▸ {codigo} – {descricao} ({status})"):
-        for tipo in ["Procedimento", "Acompanhamento"]:
+    with st.expander(f"{icone} {codigo} – {descricao}", expanded=False):
+        for tipo, bloco in atual.groupby("Tipo"):
             st.markdown(f"**{tipo}**")
-            bloco = base[base["Tipo"] == tipo]
-
             for i, r in bloco.iterrows():
                 resp = st.selectbox(
                     r["Pergunta"],
-                    OPCOES,
-                    index=OPCOES.index(r["Resposta"]),
-                    key=f"{aba}_{i}"
+                    ["Bom", "Médio", "Ruim", "Crítico", "NA"],
+                    index=["Bom", "Médio", "Ruim", "Crítico", "NA"].index(r["Resposta"]),
+                    key=f"{codigo}_{i}"
                 )
-                base.at[i, "Resposta"] = resp
+                atual.at[i, "Resposta"] = resp
 
                 if resp in ["Ruim", "Crítico"]:
-                    just = st.text_input(
-                        "Justificativa",
-                        r["Justificativa"],
-                        key=f"{aba}_{i}_j"
-                    )
-                    base.at[i, "Justificativa"] = just
-                else:
-                    base.at[i, "Justificativa"] = ""
+                    txt = st.text_input("Justificativa", atual.at[i, "Justificativa"], key=f"j_{codigo}_{i}")
+                    atual.at[i, "Justificativa"] = txt
 
-    st.session_state.avaliacao_atual["dados"][aba] = base
-
-# ===============================
+# ======================================================
 # SALVAR
-# ===============================
+# ======================================================
 if st.button("💾 Salvar Avaliação"):
-    chave = f"{cab['Data']} {cab['Hora'].strftime('%H:%M')}"
-    st.session_state.avaliacoes[chave] = json.loads(
-        json.dumps(st.session_state.avaliacao_atual)
-    )
-    salvar_avaliacoes(st.session_state.avaliacoes)
-    st.success("Avaliação salva com sucesso.")
+    chave = f"{data} {hora.strftime('%H:%M')}"
+    serial = {}
+    for k, v in st.session_state.avaliacao_atual.items():
+        serial[k] = v.to_dict(orient="records")
 
-# ===============================
+    st.session_state.avaliacoes_salvas[chave] = serial
+    salvar_avaliacoes(st.session_state.avaliacoes_salvas)
+    st.success("Avaliação salva.")
+
+# ======================================================
 # GERAR PDF
-# ===============================
-def gerar_pdf(avaliacao, nome):
-    doc = SimpleDocTemplate(nome, pagesize=A4)
-    styles = getSampleStyleSheet()
-    story = []
-
-    cab = avaliacao["cabecalho"]
-
-    story.append(Paragraph("<b>Resumo Geral</b>", styles["Title"]))
-    story.append(Spacer(1, 12))
-    story.append(Paragraph(f"Projeto: {cab['Projeto']}", styles["Normal"]))
-    story.append(Paragraph(f"Cliente: {cab['Cliente']}", styles["Normal"]))
-    story.append(Paragraph(f"Responsável: {cab['Responsavel']}", styles["Normal"]))
-    story.append(Paragraph(f"Data: {cab['Data']} {cab['Hora']}", styles["Normal"]))
-    story.append(Spacer(1, 12))
-
-    dados = []
-    for aba, df in avaliacao["dados"].items():
-        status = calcular_status(df)
-        dados.append([
-            df.iloc[0]["Fase"],
-            df.iloc[0]["Grupo"],
-            f"{df.iloc[0]['Codigo']} – {df.iloc[0]['Descricao']}",
-            status
-        ])
-
-    tabela = Table([["Fase", "Grupo", "Disciplina", "Status"]] + dados)
-    tabela.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
-        ("GRID", (0,0), (-1,-1), 1, colors.black)
-    ]))
-    story.append(tabela)
-    story.append(PageBreak())
-
-    story.append(Paragraph("<b>Justificativas</b>", styles["Title"]))
-    story.append(Spacer(1, 12))
-
-    for aba, df in avaliacao["dados"].items():
-        justs = df[df["Justificativa"] != ""]
-        if justs.empty:
-            continue
-
-        status = calcular_status(df)
-        story.append(
-            Paragraph(
-                f"<b>{df.iloc[0]['Fase']} ▸ {df.iloc[0]['Grupo']} ▸ {df.iloc[0]['Codigo']} – {df.iloc[0]['Descricao']} ({status})</b>",
-                styles["Normal"]
-            )
-        )
-        story.append(Spacer(1, 6))
-
-        for _, r in justs.iterrows():
-            story.append(Paragraph(f"- {r['Justificativa']}", styles["Normal"]))
-
-        story.append(Spacer(1, 12))
-
-    doc.build(story)
-
+# ======================================================
 if st.button("📄 Gerar PDF"):
-    gerar_pdf(st.session_state.avaliacao_atual, "avaliacao.pdf")
+    estrutura = {}
+
+    for codigo, registros in st.session_state.avaliacao_atual.items():
+        dfc = pd.DataFrame(registros)
+        fase = dfc.iloc[0]["Fase"]
+        grupo = dfc.iloc[0]["Grupo"]
+        descricao = dfc.iloc[0]["Descricao"]
+        status = calcular_status(dfc)
+
+        justs = []
+        for _, r in dfc.iterrows():
+            if r["Justificativa"]:
+                justs.append({"tipo": r["Tipo"], "texto": r["Justificativa"]})
+
+        estrutura.setdefault(fase, {}).setdefault(grupo, []).append({
+            "codigo": codigo,
+            "descricao": descricao,
+            "status": status,
+            "justificativas": justs
+        })
+
+    cab = {
+        "Projeto": nome_projeto,
+        "Cliente": cliente,
+        "Responsável": responsavel,
+        "Data": data.strftime("%d/%m/%Y"),
+        "Hora": hora.strftime("%H:%M")
+    }
+
+    gerar_pdf(cab, estrutura, "avaliacao.pdf")
     with open("avaliacao.pdf", "rb") as f:
-        st.download_button("⬇️ Download PDF", f, "avaliacao.pdf")
+        st.download_button("⬇️ Download PDF", f, file_name="avaliacao.pdf")
