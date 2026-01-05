@@ -2,19 +2,18 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+import copy
 from datetime import datetime, timedelta
-from copy import deepcopy
-
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import green, yellow, orange, red, grey, black
 
 # =====================================================
-# CONFIGURAÇÃO
+# CONFIG
 # =====================================================
 st.set_page_config("Painel Administração Contratual", layout="wide")
 
-ARQUIVO_AVALIACOES = "avaliacoes.json"
+AVALIACOES_FILE = "avaliacoes.json"
 
 STATUS_OPCOES = ["NA", "Bom", "Médio", "Ruim", "Crítico"]
 
@@ -38,22 +37,22 @@ STATUS_EMOJI = {
 # PERSISTÊNCIA
 # =====================================================
 def carregar_avaliacoes():
-    if os.path.exists(ARQUIVO_AVALIACOES):
-        with open(ARQUIVO_AVALIACOES, "r", encoding="utf-8") as f:
+    if os.path.exists(AVALIACOES_FILE):
+        with open(AVALIACOES_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
 def salvar_avaliacoes(dados):
-    with open(ARQUIVO_AVALIACOES, "w", encoding="utf-8") as f:
+    with open(AVALIACOES_FILE, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=2)
 
 # =====================================================
-# STATUS (SEMAFORO)
+# STATUS / SEMÁFORO
 # =====================================================
-def calcular_status(respostas):
+def calcular_status(respostas_dict):
     prioridade = ["Crítico", "Ruim", "Médio", "Bom"]
     for p in prioridade:
-        if p in respostas:
+        if p in respostas_dict.values():
             return p
     return "NA"
 
@@ -63,16 +62,12 @@ def calcular_status(respostas):
 def gerar_pdf(cab, avaliacao, nome_pdf):
     c = canvas.Canvas(nome_pdf, pagesize=A4)
     largura, altura = A4
-    y = altura - 40
     pagina = 1
+    y = altura - 40
 
-    def nova_pagina():
-        nonlocal y, pagina
+    def rodape():
         c.setFont("Helvetica", 9)
         c.drawRightString(largura - 40, 20, f"Página {pagina}")
-        c.showPage()
-        pagina += 1
-        y = altura - 40
 
     # CABEÇALHO
     c.setFont("Helvetica-Bold", 14)
@@ -80,15 +75,18 @@ def gerar_pdf(cab, avaliacao, nome_pdf):
     y -= 20
 
     c.setFont("Helvetica", 10)
-    for k, v in cab.items():
-        c.drawString(40, y, f"{k}: {v}")
-        y -= 14
-
-    y -= 10
+    c.drawString(40, y, f"Projeto: {cab['projeto']}")
+    y -= 14
+    c.drawString(40, y, f"Cliente: {cab['cliente']}")
+    y -= 14
+    c.drawString(40, y, f"Responsável: {cab['responsavel']}")
+    y -= 14
+    c.drawString(40, y, f"Data: {cab['data']} {cab['hora']}")
+    y -= 30
 
     # RESUMO
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(40, y, "Resumo por Disciplina")
+    c.drawString(40, y, "Resumo Geral")
     y -= 20
 
     for fase, grupos in avaliacao.items():
@@ -101,18 +99,24 @@ def gerar_pdf(cab, avaliacao, nome_pdf):
             c.drawString(60, y, f"> {grupo}")
             y -= 14
 
-            for cod, d in disciplinas.items():
-                status = calcular_status([r["resposta"] for r in d["respostas"].values()])
+            for cod, disc in disciplinas.items():
+                status = calcular_status(disc["respostas"])
                 c.setFillColor(STATUS_CORES[status])
                 c.rect(80, y - 4, 8, 8, fill=1)
                 c.setFillColor(black)
-                c.drawString(95, y, f"{cod} – {d['descricao']}")
+                c.drawString(95, y, f"{cod} – {disc['descricao']}")
                 y -= 14
 
                 if y < 60:
-                    nova_pagina()
+                    rodape()
+                    c.showPage()
+                    pagina += 1
+                    y = altura - 40
 
-    nova_pagina()
+    rodape()
+    c.showPage()
+    pagina += 1
+    y = altura - 40
 
     # JUSTIFICATIVAS
     c.setFont("Helvetica-Bold", 12)
@@ -121,37 +125,37 @@ def gerar_pdf(cab, avaliacao, nome_pdf):
 
     for fase, grupos in avaliacao.items():
         for grupo, disciplinas in grupos.items():
-            for cod, d in disciplinas.items():
-                itens = [
-                    r for r in d["respostas"].values()
-                    if r["justificativa"]
-                ]
-                if not itens:
+            for cod, disc in disciplinas.items():
+                if not disc["justificativas"]:
                     continue
 
-                status = calcular_status([r["resposta"] for r in itens])
+                status = calcular_status(disc["respostas"])
                 c.setFillColor(STATUS_CORES[status])
                 c.rect(40, y - 4, 8, 8, fill=1)
                 c.setFillColor(black)
 
                 c.setFont("Helvetica-Bold", 10)
-                c.drawString(55, y, f"{fase} > {grupo} > {cod} – {d['descricao']}")
+                c.drawString(55, y, f"{fase} > {grupo} > {cod} – {disc['descricao']}")
                 y -= 14
 
                 c.setFont("Helvetica", 10)
-                for r in itens:
-                    c.drawString(60, y, f"- {r['justificativa']}")
+                for j in disc["justificativas"]:
+                    c.drawString(60, y, f"- {j}")
                     y -= 12
                     if y < 60:
-                        nova_pagina()
+                        rodape()
+                        c.showPage()
+                        pagina += 1
+                        y = altura - 40
 
+    rodape()
     c.save()
 
 # =====================================================
-# ESTADO
+# ESTADO GLOBAL
 # =====================================================
-if "avaliacoes_salvas" not in st.session_state:
-    st.session_state.avaliacoes_salvas = carregar_avaliacoes()
+if "avaliacoes_por_data" not in st.session_state:
+    st.session_state.avaliacoes_por_data = carregar_avaliacoes()
 
 if "avaliacao_atual" not in st.session_state:
     st.session_state.avaliacao_atual = {}
@@ -161,45 +165,52 @@ if "avaliacao_atual" not in st.session_state:
 # =====================================================
 st.title("Painel Administração Contratual")
 
-modo = st.radio("Modo", ["Nova Avaliação", "Abrir Avaliação Existente"], horizontal=True)
+modo = st.radio(
+    "Modo",
+    ["Nova Avaliação", "Abrir Avaliação Existente"],
+    horizontal=True
+)
 
 # =====================================================
 # CABEÇALHO
 # =====================================================
-st.subheader("Cabeçalho")
+st.subheader("Cabeçalho da Avaliação")
 
-cab = {
-    "Projeto": st.text_input("Projeto"),
-    "Cliente": st.text_input("Cliente"),
-    "Responsável": st.text_input("Responsável"),
-    "Data": str(st.date_input("Data", datetime.now().date())),
-    "Hora": st.time_input(
-        "Hora",
-        (datetime.utcnow() - timedelta(hours=3)).time()
-    ).strftime("%H:%M")
-}
+projeto = st.text_input("Nome do Projeto")
+cliente = st.text_input("Cliente")
+responsavel = st.text_input("Responsável")
+
+data = st.date_input("Data", datetime.now().date())
+hora = st.time_input("Hora", (datetime.utcnow() - timedelta(hours=3)).time())
 
 # =====================================================
-# ABRIR AVALIAÇÃO
+# ABRIR AVALIAÇÃO (CORRIGIDO DEFINITIVAMENTE)
 # =====================================================
 if modo == "Abrir Avaliação Existente":
-    chaves = list(st.session_state.avaliacoes_salvas.keys())
+    chaves = list(st.session_state.avaliacoes_por_data.keys())
+
+    if not chaves:
+        st.info("Nenhuma avaliação salva.")
+        st.stop()
+
     chave = st.selectbox("Selecione a avaliação", chaves)
-    st.session_state.avaliacao_atual = deepcopy(
-        st.session_state.avaliacoes_salvas[chave]
+
+    # 🔥 CORREÇÃO DEFINITIVA
+    st.session_state.avaliacao_atual = copy.deepcopy(
+        st.session_state.avaliacoes_por_data[chave]
     )
 
 # =====================================================
-# UPLOAD
+# UPLOAD EXCEL
 # =====================================================
-arquivo = st.file_uploader("Upload do Excel", type="xlsx")
-if not arquivo:
+uploaded = st.file_uploader("Upload do Excel do Projeto", type="xlsx")
+if not uploaded:
     st.stop()
 
-xls = pd.ExcelFile(arquivo)
+xls = pd.ExcelFile(uploaded)
 
 # =====================================================
-# CRIA ESTRUTURA (SÓ NA NOVA)
+# INICIALIZAÇÃO (SÓ SE NOVA)
 # =====================================================
 if modo == "Nova Avaliação":
     st.session_state.avaliacao_atual = {}
@@ -213,39 +224,36 @@ if modo == "Nova Avaliação":
         for _, r in df.iterrows():
             fase = r["Fase"]
             grupo = r["Grupo"]
-            pergunta = r["Pergunta"]
 
-            st.session_state.avaliacao_atual \
-                .setdefault(fase, {}) \
-                .setdefault(grupo, {}) \
-                .setdefault(codigo, {
-                    "descricao": descricao,
-                    "respostas": {}
-                })
-
-            st.session_state.avaliacao_atual[fase][grupo][codigo]["respostas"][pergunta] = {
-                "resposta": "NA",
-                "justificativa": ""
-            }
+            st.session_state.avaliacao_atual.setdefault(fase, {})
+            st.session_state.avaliacao_atual[fase].setdefault(grupo, {})
+            st.session_state.avaliacao_atual[fase][grupo].setdefault(codigo, {
+                "descricao": descricao,
+                "respostas": {},
+                "justificativas": []
+            })
 
 # =====================================================
-# TELA DE PERGUNTAS
+# TELAS DE PERGUNTAS
 # =====================================================
+st.subheader("Avaliação")
+
 for fase, grupos in st.session_state.avaliacao_atual.items():
-    with st.expander(f"▶ {fase}", expanded=True):
+    with st.expander(f"> {fase}", expanded=True):
+
         for grupo, disciplinas in grupos.items():
-            with st.expander(f"▶ {grupo}", expanded=True):
-                for codigo, d in disciplinas.items():
-                    respostas = [r["resposta"] for r in d["respostas"].values()]
-                    status = calcular_status(respostas)
+            with st.expander(f"> {grupo}", expanded=True):
+
+                for cod, disc in disciplinas.items():
+                    status = calcular_status(disc["respostas"])
 
                     with st.expander(
-                        f"{STATUS_EMOJI[status]} {codigo} – {d['descricao']}",
+                        f"{STATUS_EMOJI[status]} {cod} – {disc['descricao']}",
                         expanded=False
                     ):
                         for aba in xls.sheet_names:
                             base = xls.parse(aba)
-                            base = base[base["Codigo"] == codigo]
+                            base = base[base["Codigo"] == cod]
 
                             for tipo in ["Procedimento", "Acompanhamento"]:
                                 bloco = base[base["Tipo"] == tipo]
@@ -254,38 +262,55 @@ for fase, grupos in st.session_state.avaliacao_atual.items():
 
                                 st.markdown(f"**{tipo}**")
 
-                                for _, r in bloco.iterrows():
-                                    key = f"{codigo}_{r['Pergunta']}"
+                                for i, r in bloco.iterrows():
+                                    key = f"{fase}_{grupo}_{cod}_{i}"
 
                                     resp = st.selectbox(
                                         r["Pergunta"],
                                         STATUS_OPCOES,
                                         index=STATUS_OPCOES.index(
-                                            d["respostas"][r["Pergunta"]]["resposta"]
+                                            disc["respostas"].get(r["Pergunta"], "NA")
                                         ),
                                         key=key
                                     )
 
-                                    d["respostas"][r["Pergunta"]]["resposta"] = resp
+                                    disc["respostas"][r["Pergunta"]] = resp
 
                                     if resp in ["Ruim", "Crítico"]:
                                         j = st.text_input(
                                             "Justificativa",
-                                            value=d["respostas"][r["Pergunta"]]["justificativa"],
                                             key=f"{key}_j"
                                         )
-                                        d["respostas"][r["Pergunta"]]["justificativa"] = j
+                                        if j and j not in disc["justificativas"]:
+                                            disc["justificativas"].append(j)
 
 # =====================================================
-# AÇÕES
+# SALVAR / PDF
 # =====================================================
+st.divider()
+
 if st.button("💾 Salvar Avaliação"):
-    chave = f"{cab['Data']} {cab['Hora']}"
-    st.session_state.avaliacoes_salvas[chave] = deepcopy(st.session_state.avaliacao_atual)
-    salvar_avaliacoes(st.session_state.avaliacoes_salvas)
+    chave = f"{data} {hora.strftime('%H:%M')}"
+    st.session_state.avaliacoes_por_data[chave] = copy.deepcopy(
+        st.session_state.avaliacao_atual
+    )
+    salvar_avaliacoes(st.session_state.avaliacoes_por_data)
     st.success("Avaliação salva com sucesso.")
 
 if st.button("📄 Gerar PDF"):
+    cab = {
+        "projeto": projeto,
+        "cliente": cliente,
+        "responsavel": responsavel,
+        "data": str(data),
+        "hora": hora.strftime("%H:%M")
+    }
+
     gerar_pdf(cab, st.session_state.avaliacao_atual, "avaliacao.pdf")
+
     with open("avaliacao.pdf", "rb") as f:
-        st.download_button("⬇️ Download PDF", f, "avaliacao.pdf")
+        st.download_button(
+            "⬇️ Download PDF",
+            f,
+            "avaliacao.pdf"
+        )
